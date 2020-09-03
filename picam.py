@@ -1,5 +1,5 @@
 import os
-os.environ['PICAM_DLL'] = r"C:\Program Files\Princeton Instruments\PICam\Runtime\picam.dll"
+os.environ['PICAM_DLL'] = r"C:\Program Files\Princeton Instruments\PICam\Runtime\Picam.dll"
 #import PythonForPicam.Main as PI 
 import ctypes
 from ctypes import byref
@@ -29,6 +29,9 @@ class PiCAM(object):
         self.camera_id = picam_ctypes.PicamCameraID()
         PI.Picam_GetCameraID(self.camera_handle, self.camera_id)
         #model_name_buf = ctypes.create_string_buffer(256)
+        
+        #This is only useful in DEBUG mode because model_name_buf and its
+        #content gets destroyed right after initialisation
         model_name_buf = ctypes.c_char_p()
         PI.Picam_GetEnumerationString(picam_ctypes.PicamEnumeratedTypeEnum.bysname['Model'], self.camera_id.model, byref(model_name_buf) )
         if self.debug: print((self.camera_handle, self.camera_id.model, str(model_name_buf.value), picam_ctypes.PicamModelEnum.bynums[self.camera_id.model]))
@@ -66,15 +69,30 @@ class PiCAM(object):
                 #print "PI_read_param", pname, ptype, val, repr(val.value), enum_name
                 #return val.value, enum_name
                 return enum_name
+        
         elif ptype in ['Rois']:
             rois_p = ctypes.POINTER(picam_ctypes.PicamRois)()
             self._err(PI.Picam_GetParameterRoisValue(self.camera_handle, param.enum, byref(rois_p)))
             rois = rois_p.contents
             #print "roi_count", rois.roi_count
             #print "roi_array",rois.roi_array[0]
-            rois_array = np.fromiter(rois.roi_array, dtype=picam_ctypes.PicamRoi, count=rois.roi_count)
+            
+            #rois_array = np.fromiter(rois.roi_array, dtype=picam_ctypes.PicamRoi, count=rois.roi_count)            
+            #roi_dict_array = [ ROI_tuple(*roi) for roi in rois_array ]
+            
+            #Populate the tuple using a loop instead of direct assignment
+            roi_dict_array = list(np.empty(rois.roi_count))
+            for i in range(rois.roi_count):
+                itup = ROI_tuple(rois.roi_array[i].x,
+                          rois.roi_array[i].width,
+                          rois.roi_array[i].x_binning,
+                          rois.roi_array[i].y,
+                          rois.roi_array[i].height,
+                          rois.roi_array[i].y_binning,
+                          )
+                roi_dict_array[i] = itup
+            
             self._err(PI.Picam_DestroyRois(rois_p))
-            roi_dict_array = [ ROI_tuple(*roi) for roi in rois_array ]
             return roi_dict_array
         else:
             raise ValueError("PI_read_param ptype not understood: {}".format(repr(ptype)))
@@ -135,33 +153,67 @@ class PiCAM(object):
     def get_param_names(self):
         
         param_array = ctypes.c_void_p()
+        #param_array = ctypes.POINTER(picam_ctypes.PicamParameter)()
         pcount = picam_ctypes.piint()
         
-        self._err(PI.Picam_GetParameters(self.camera_handle, byref(param_array), byref(pcount) ))
+        self._err(PI.Picam_GetParameters(self.camera_handle, byref(param_array), byref(pcount)))
         data_p = ctypes.cast(param_array, ctypes.POINTER(ctypes.c_int))
         a = np.fromiter(data_p, dtype=int, count=pcount.value)    
         self._err(PI.Picam_DestroyParameters(param_array))
         #print 'get_params', a
-        return [picam_ctypes.PicamParameterEnum.bynums[x] for x in a]
+        param_list = []
+
+        #Skip invalid parameters
+        for x in a:
+            print(x)
+            if x in picam_ctypes.PicamParameterEnum.bynums:
+                #print(picam_ctypes.PicamParameterEnum.bynums[x])
+                param_list += picam_ctypes.PicamParameterEnum.bynums[x]
+            else:
+                print(picam_ctypes.PicamParameterEnum.bynums[x])
+            
+        return(param_list)
     
     def read_rois(self):
         self.roi_array =  self.read_param('Rois')
         return self.roi_array
     
+    
     def write_rois(self, rois_list):
+        print(rois_list)
         param = picam_ctypes.PicamParameter["PicamParameter_Rois"]
 
-        roi_np_array = np.empty(len(rois_list), dtype=picam_ctypes.PicamRoi)
-        for ii, roi in enumerate(rois_list):
-            roi_np_array[ii] = picam_ctypes.PicamRoi(*roi)
+        roi_np_array = np.empty(len(rois_list), dtype=type(picam_ctypes.PicamRoi))
+
+        roi_array_type = picam_ctypes.PicamRoi*len(roi_np_array)
+        roi_array = roi_array_type(*rois_list)
+        
+        #for ii,roi in enumerate(rois_list):
+        #    roi_array[ii] = picam_ctypes.PicamRoi(*roi)
+
+        #for ii, roi in enumerate(rois_list):
+            #print(picam_ctypes.PicamRoi(*roi))
+        #    roi_np_array[ii] = picam_ctypes.PicamRoi(*roi)
 
         rois = picam_ctypes.PicamRois()
-        rois.roi_array = ctypes.cast(roi_np_array.ctypes.data, ctypes.POINTER(picam_ctypes.PicamRoi))
-        rois.roi_count = len(roi_np_array)
-        self._err(PI.Picam_SetParameterRoisValue(self.camera_handle, param.enum, byref(rois)))
+        
+        #rois.roi_array = ctypes.cast(roi_np_array.ctypes.data, ctypes.POINTER(picam_ctypes.PicamRoi))
+        #rois.roi_array = ctypes.cast(roi_np_array.ctypes.data, ctypes.POINTER(picam_ctypes.PicamRoi))
+        #rois.roi_array = ctypes.cast(roi_np_array.ctypes.data,picam_ctypes.PicamRoi*len(roi_np_array))
+        rois.roi_array = roi_array
+        rois.roi_count = picam_ctypes.piint(len(roi_np_array))
+        print(roi_np_array)
+        print(rois.roi_array.contents)
+        self._err(PI.Picam_SetParameterRoisValue(self.camera_handle,param.enum,rois))
         
     def write_single_roi(self, x, width, x_binning, y, height, y_binning):
-        return self.write_rois( [ROI_tuple(x, width, x_binning, y, height, y_binning)] )
+#        print(x)
+#        print(width)
+#        print(x_binning)
+#        print(y)
+#        print(height)
+#        print(y_binning)
+        return self.write_rois([ROI_tuple(x, width, x_binning, y, height, y_binning)])
     
     def acquire(self, readout_count=1, readout_timeout=-1):
         readout_count = picam_ctypes.pi64s(readout_count)
