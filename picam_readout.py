@@ -50,7 +50,10 @@ class PicamReadoutMeasure(Measurement):
             px_index = np.arange(self.spec.shape[-1])
             self.hbin = self.spec_hw.settings['roi_x_bin']
 
-            self.wls = self.app.hardware['acton_spectrometer'].get_wl_calibration(px_index, self.hbin) 
+            if 'acton_spectrometer' in self.app.hardware:
+                self.wls = self.app.hardware['acton_spectrometer'].get_wl_calibration(px_index, self.hbin)
+            else:
+                self.wls =  self.hbin*px_index + 0.5*(self.hbin-1)
             self.pixels = self.hbin*px_index + 0.5*(self.hbin-1)
             self.raw_pixels = px_index
             self.wave_numbers = 1.0e7/self.wls
