@@ -168,7 +168,7 @@ class PiCAM(object):
             print(x)
             if x in picam_ctypes.PicamParameterEnum.bynums:
                 #print(picam_ctypes.PicamParameterEnum.bynums[x])
-                param_list += picam_ctypes.PicamParameterEnum.bynums[x]
+                param_list.append( picam_ctypes.PicamParameterEnum.bynums[x] )
             else:
                 print(picam_ctypes.PicamParameterEnum.bynums[x])
             
