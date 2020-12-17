@@ -45,9 +45,9 @@ class PicamReadoutMeasure(Measurement):
             
             self.roi_data = cam.reshape_frame_data(dat)
             #print "roi_data shapes", [d.shape for d in self.roi_data]            
-            self.spec = spec  = np.average(self.roi_data[0], axis=0)
+            self.spectrum = spec  = np.average(self.roi_data[0], axis=0)
             
-            px_index = np.arange(self.spec.shape[-1])
+            px_index = np.arange(self.spectrum.shape[-1])
             self.hbin = self.spec_hw.settings['roi_x_bin']
 
             if 'acton_spectrometer' in self.app.hardware:
