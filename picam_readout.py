@@ -18,9 +18,6 @@ class PicamReadoutMeasure(Measurement):
                           choices=('pixels', 'raw_pixels', 'acton_spectrometer', 'wave_numbers', 'raman_shifts'))
         self.laser_wl = self.settings.New('laser_wl', initial = 532.0, vmin=1e-15)
         
-        
-
-        
         #connect events
         
         
@@ -42,7 +39,8 @@ class PicamReadoutMeasure(Measurement):
             self.t0 = time.time()
             
             dat = cam.acquire(readout_count=1, readout_timeout=-1)
-            
+            self.acq_time = time.time() - self.t0
+
             self.roi_data = cam.reshape_frame_data(dat)
             #print "roi_data shapes", [d.shape for d in self.roi_data]            
             self.spectrum = spec  = np.average(self.roi_data[0], axis=0)
@@ -65,6 +63,7 @@ class PicamReadoutMeasure(Measurement):
             if not self.continuous.val:
                 break
             
+            
 
         if self.settings['save_h5']:
             self.h5_file = h5_io.h5_base_file(self.app, measurement=self )
@@ -86,6 +85,8 @@ class PicamReadoutMeasure(Measurement):
 
         self.ui = load_qt_ui_file(sibling_path(__file__, 'picam_readout.ui'))
         
+        self.spec_hw.settings.connected.connect_to_widget(self.ui.hw_connect_checkBox)
+        
         self.spec_hw.settings.ExposureTime.connect_to_widget(self.ui.int_time_doubleSpinBox) 
         self.spec_hw.settings.SensorTemperatureReading.connect_to_widget(self.ui.temp_doubleSpinBox) 
 
@@ -97,7 +98,36 @@ class PicamReadoutMeasure(Measurement):
         self.continuous.connect_to_widget(self.ui.continuous_checkBox)
         self.wl_calib.connect_to_widget(self.ui.wl_calib_comboBox)
 
+        import pyqtgraph.dockarea as dockarea
 
+        self.dockarea = dockarea.DockArea()
+        self.ui.plot_groupBox.layout().addWidget(self.dockarea)
+        
+        self.spec_plot = pg.PlotWidget()
+        spec_dock = self.dockarea.addDock(name='Spec', position='below', widget=self.spec_plot)
+        self.spec_plot_line = self.spec_plot.plot([1,3,2,4,3,5])
+        self.spec_plot.enableAutoRange()
+
+        self.img_graphlayout = pg.GraphicsLayoutWidget()
+        self.img_plot = self.img_graphlayout.addPlot()
+        self.img_item = pg.ImageItem()
+        self.img_plot.addItem(self.img_item)
+        self.img_plot.showGrid(x=True, y=True)
+        self.img_plot.setAspectLocked(lock=True, ratio=1)
+        self.dockarea.addDock(name='Img', position='below', relativeTo=spec_dock, widget=self.img_graphlayout)
+
+        self.hist_lut = pg.HistogramLUTItem()
+        self.hist_lut.autoHistogramRange()
+        self.hist_lut.setImageItem(self.img_item)
+        self.img_graphlayout.addItem(self.hist_lut)
+        
+        self.cam_controls = self.app.hardware['picam'].settings.New_UI(style='scroll_form')
+        self.dockarea.addDock(name='PICAM', position='below', relativeTo=spec_dock, widget=self.cam_controls)
+
+        spec_dock.raiseDock()
+
+
+        """
         if hasattr(self, 'graph_layout'):
             self.graph_layout.deleteLater() # see http://stackoverflow.com/questions/9899409/pyside-removing-a-widget-from-a-layout
             del self.graph_layout
@@ -119,7 +149,7 @@ class PicamReadoutMeasure(Measurement):
         self.hist_lut = pg.HistogramLUTItem()
         self.hist_lut.autoHistogramRange()
         self.hist_lut.setImageItem(self.img_item)
-        self.graph_layout.addItem(self.hist_lut)
+        self.graph_layout.addItem(self.hist_lut)"""
 
     def update_display(self):
         self.img_item.setImage(self.roi_data[0].T.astype(float), autoLevels=False)
@@ -139,3 +169,4 @@ class PicamReadoutMeasure(Measurement):
             
         spec = np.average(self.roi_data[0], axis=0)
         self.spec_plot_line.setData(x,spec)
+        self.spec_plot.setTitle("acq_time: {}".format(self.acq_time))
