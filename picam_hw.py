@@ -41,13 +41,13 @@ class PicamHW(HardwareComponent):
                     
         # Customize auto-generated parameters
         self.settings.ExposureTime.change_unit('ms')
+        self.settings.AdcSpeed.change_unit('MHz')
 
 
         # operations
         self.add_operation('commit_parameters', self.commit_parameters)
     
-        #connect to custom gui - NOTE:  these are not disconnected! 
-
+    
     def connect(self):
         if self.debug_mode.val: self.log.info("Connecting to PICAM")
         

@@ -13,6 +13,7 @@ import collections
 picam_dll_fname = os.environ['PICAM_DLL']
 PI = ctypes.cdll.LoadLibrary(picam_dll_fname)
 from . import picam_ctypes
+import time
 
 ROI_tuple = collections.namedtuple('ROI_tuple', "x width x_binning y height y_binning")
 
@@ -27,14 +28,23 @@ class PiCAM(object):
         PI.Picam_OpenFirstCamera(byref(self.camera_handle))
         
         self.camera_id = picam_ctypes.PicamCameraID()
-        PI.Picam_GetCameraID(self.camera_handle, self.camera_id)
+        PI.Picam_GetCameraID(self.camera_handle, byref(self.camera_id))
+        if self.debug:
+            print("camera_id", self.camera_id)
+            def print_struct_fields(s):
+                for field in s._fields_:
+                    print("\t",field[0], getattr(s, field[0]))
+                    
+            print_struct_fields(self.camera_id)
+        
         #model_name_buf = ctypes.create_string_buffer(256)
         
         #This is only useful in DEBUG mode because model_name_buf and its
         #content gets destroyed right after initialisation
         model_name_buf = ctypes.c_char_p()
         PI.Picam_GetEnumerationString(picam_ctypes.PicamEnumeratedTypeEnum.bysname['Model'], self.camera_id.model, byref(model_name_buf) )
-        if self.debug: print((self.camera_handle, self.camera_id.model, str(model_name_buf.value), picam_ctypes.PicamModelEnum.bynums[self.camera_id.model]))
+        if self.debug: print("Camera Handle: {}\n Model: {}\n Model Name: {}\n ModelEnum={}".format(
+                                    self.camera_handle, self.camera_id.model, str(model_name_buf.value), picam_ctypes.PicamModelEnum.bynums[self.camera_id.model]))
         PI.Picam_DestroyString( model_name_buf )
         
         if self.debug: print(( "SN:{} [{}]".format(self.camera_id.serial_number, self.camera_id.sensor_name)))
@@ -106,6 +116,8 @@ class PiCAM(object):
         param = picam_ctypes.PicamParameter["PicamParameter_" + pname]
         ptype = param.param_type
         
+        print(param, repr(ptype))
+        
         # TODO check for read only
                 
         if ptype in ['Integer', 'i','I', int]:
@@ -116,6 +128,16 @@ class PiCAM(object):
             self._err(PI.Picam_SetParameterIntegerValue(self.camera_handle, param.enum, newval))
         elif ptype in ['FloatingPoint', 'f','F',float]:
             self._err(PI.Picam_SetParameterFloatingPointValue(self.camera_handle,param.enum, picam_ctypes.piflt(newval)))
+        elif ptype in ['Enumeration']:
+                enum_name = "Picam{}Enum".format(param.short_name)
+                if not hasattr(picam_ctypes, enum_name):
+                    raise ValueError("PICAM write_param failed: {} --> {} not allowed".format(pname, newval) )
+                enum_obj = getattr(picam_ctypes, enum_name)
+                newval_id = enum_obj.bysname[newval]
+                print('enum', newval, newval_id)
+                self._err(PI.Picam_SetParameterIntegerValue(self.camera_handle, param.enum, newval_id))
+                
+
         else:
             raise ValueError("PI write_param ptype not understood: {}".format(repr(ptype)))
 
@@ -220,16 +242,24 @@ class PiCAM(object):
         readout_time_out = picam_ctypes.piint(readout_timeout)
         available = picam_ctypes.PicamAvailableData()
         errors = ctypes.c_int()
-                
-        self._err(PI.Picam_Acquire(self.camera_handle, readout_count, readout_time_out, ctypes.byref(available), ctypes.byref(errors)))
+        
+        #import time
+        
+        if self.debug:
+            t0 = time.time()
+        self._err(PI.Picam_Acquire(self.camera_handle, readout_count, readout_time_out, byref(available), byref(errors)))
+        if self.debug:
+            print("Picam_Acquire time", time.time() - t0)
+            print("available.initial_readout: ",available.initial_readout)
+            print("available.readout_count: ", available.readout_count)
+            print("Initial readout type is", type(available.initial_readout))
 
-        #print "available.initial_readout: ",available.initial_readout
-        #print "available.readout_count: ", available.readout_count
-        #print "Initial readout type is", type(available.initial_readout)
-
+        #t0 = time.time()
         data_p = ctypes.cast(available.initial_readout, ctypes.POINTER(picam_ctypes.pi16s*(self.read_param('ReadoutStride')//2)))
         #data = np.fromiter(data_p, dtype=np.int16, count=readout_count.value*self.read_param('ReadoutStride'))
         data = np.frombuffer(data_p.contents, dtype=np.uint16)
+        #print("data conversion time", time.time() - t0)
+
         return data
     
         '''
@@ -315,7 +345,12 @@ if __name__ == '__main__':
     for pname in ["ReadoutStride", "FrameStride"]:
         print(":::", pname, cam.read_param(pname))
     
-    dat = cam.acquire(1)
+    import time
+    ex_time = 0.010
+    t0 = time.time()
+    dat = cam.acquire(ex_time)
+    t1 = time.time()
+    print("data acquisition of exp_time of {} sec took {} sec".format(ex_time, t1-t0))
     print("dat.shape", dat.shape)
     
     roi_data = cam.reshape_frame_data(dat)
