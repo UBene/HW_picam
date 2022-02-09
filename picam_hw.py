@@ -1,7 +1,7 @@
 from __future__ import absolute_import, print_function, division
 from ScopeFoundry import HardwareComponent
 try:
-    from .picam import PiCAM#, ROI_tuple
+    from .picam import PiCAM  # , ROI_tuple
 except Exception as err:
     print("Could not load modules needed for PICAM CCD:", err)
 
@@ -10,11 +10,12 @@ from .picam_ctypes import PicamParameter
 
 
 class PicamHW(HardwareComponent):
+    
     name = "picam"
 
     def setup(self):
         # Create logged quantities
-        self.status = self.add_logged_quantity(name='ccd_status', dtype=str, fmt="%s",ro=True)
+        self.status = self.add_logged_quantity(name='ccd_status', dtype=str, fmt="%s", ro=True)
     
         # Single ROI settings
         self.settings.New('roi_x', dtype=int, initial=0, si=False)
@@ -38,15 +39,12 @@ class PicamHW(HardwareComponent):
                     choice_names = enum_obj.bysname.keys()
                     self.add_logged_quantity(name=param.short_name, dtype=str, choices=choice_names)
                     
-                    
         # Customize auto-generated parameters
         self.settings.ExposureTime.change_unit('ms')
         self.settings.AdcSpeed.change_unit('MHz')
 
-
         # operations
         self.add_operation('commit_parameters', self.commit_parameters)
-    
     
     def connect(self):
         if self.debug_mode.val: self.log.info("Connecting to PICAM")
@@ -60,12 +58,12 @@ class PicamHW(HardwareComponent):
                 self.log.debug("connecting {}".format(pname))
                 lq = self.settings.as_dict()[pname]
                 self.log.debug("lq.name {}".format(lq.name))
-                lq.hardware_read_func = lambda pname=pname: self.cam.read_param(pname)
+                lq.hardware_read_func = lambda pname = pname: self.cam.read_param(pname)
                 self.log.debug("lq.read_from_hardware() {}".format(lq.read_from_hardware()))
                 rw = self.cam.get_param_readwrite(pname)
-                self.log.debug("picam param rw {} {}".format( lq.name, rw))
+                self.log.debug("picam param rw {} {}".format(lq.name, rw))
                 if rw in ['ReadWriteTrivial', 'ReadWrite']:
-                    lq.hardware_set_func = lambda x, pname=pname: self.cam.write_param(pname, x)
+                    lq.hardware_set_func = lambda x, pname = pname: self.cam.write_param(pname, x)
                 elif rw == 'ReadOnly':
                     lq.change_readonly(True)
                 else:
@@ -76,20 +74,19 @@ class PicamHW(HardwareComponent):
             
         self.write_roi()
 
-
     def write_roi(self, a=None):
         self.log.debug('write_roi')
         S = self.settings
-        self.cam.write_single_roi(x=S['roi_x'], width=S['roi_w'],  x_binning=S['roi_x_bin'],
+        self.cam.write_single_roi(x=S['roi_x'], width=S['roi_w'], x_binning=S['roi_x_bin'],
                                   y=S['roi_y'], height=S['roi_h'], y_binning=S['roi_y_bin'])
 
     def disconnect(self):
 
-        #disconnect logged quantities from hardware
+        # disconnect logged quantities from hardware
         self.settings.disconnect_all_from_hardware()
         
         if hasattr(self, 'cam'):
-            #disconnect hardware
+            # disconnect hardware
             self.cam.close()
             
             # clean up hardware object
