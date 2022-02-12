@@ -170,3 +170,12 @@ class PicamReadoutMeasure(Measurement):
         spec = np.average(self.roi_data[0], axis=0)
         self.spec_plot_line.setData(x,spec)
         self.spec_plot.setTitle("acq_time: {}".format(self.acq_time))
+        
+        
+    def get_spectrum(self):
+        if hasattr(self, 'spectrum'):
+            return self.spectrum        # maybe not be generally true
+    
+    def get_roi_data(self):
+        if hasattr(self, 'roi_data'):
+            return self.roi_data        # maybe not be generally true
