@@ -23,10 +23,13 @@ class PicamReadoutMeasure(Measurement):
                           unit='nm',
                           description='used to calculate raman_shifts')
         self.settings.New('count_rate', float, unit='Hz')
-        self.settings.New('spec_hw', str, initial='pi_spectrometer')
+        self.settings.New('spec_hw', str, initial='pi_spectrometer',
+                          choices=('pi_spectrometer',
+                                     'acton_spectrometer'))
 
         self.display_update_period = 0.050  # seconds
         self.cam_hw = self.app.hardware['picam']
+        self.wls = np.arange(512)  # initialize dummy wls
 
     def run(self):
 
