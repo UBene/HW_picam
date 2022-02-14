@@ -93,8 +93,7 @@ class PicamReadoutMeasure(Measurement):
         self.cam_hw.settings.ExposureTime.connect_to_widget(self.ui.int_time_doubleSpinBox) 
         self.cam_hw.settings.SensorTemperatureReading.connect_to_widget(self.ui.temp_doubleSpinBox) 
 
-        self.ui.start_pushButton.clicked.connect(self.start)
-        self.ui.interrupt_pushButton.clicked.connect(self.interrupt)
+        self.activation.connect_to_pushButton(self.ui.start_pushButton)
         self.ui.commit_pushButton.clicked.connect(self.cam_hw.commit_parameters)
 
         self.settings.save_h5.connect_to_widget(self.ui.save_h5_checkBox)
