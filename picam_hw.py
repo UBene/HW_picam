@@ -1,4 +1,3 @@
-from __future__ import absolute_import, print_function, division
 from ScopeFoundry import HardwareComponent
 try:
     from .picam import PiCAM  # , ROI_tuple
@@ -15,9 +14,7 @@ class PicamHW(HardwareComponent):
 
     def setup(self):
         # Create logged quantities
-        self.status = self.settings.New(name='ccd_status', dtype=str, fmt="%s", ro=True)
-    
-        # Single ROI settings
+        self.settings.New('ccd_status', dtype=str, fmt="%s", ro=True)
         self.settings.New('roi_x', dtype=int, initial=0, si=False)
         self.settings.New('roi_w', dtype=int, initial=1340, si=False)
         self.settings.New('roi_x_bin', dtype=int, initial=1, si=False)
@@ -47,7 +44,7 @@ class PicamHW(HardwareComponent):
         self.add_operation('commit_parameters', self.commit_parameters)
     
     def connect(self):
-        if self.debug_mode.val: self.log.info("Connecting to PICAM")
+        if self.settings['debug_mode']: self.log.info("Connecting to PICAM")
         
         self.cam = PiCAM()
 
@@ -82,14 +79,10 @@ class PicamHW(HardwareComponent):
 
     def disconnect(self):
 
-        # disconnect logged quantities from hardware
         self.settings.disconnect_all_from_hardware()
         
         if hasattr(self, 'cam'):
-            # disconnect hardware
             self.cam.close()
-            
-            # clean up hardware object
             del self.cam
             
     def commit_parameters(self):

@@ -1,35 +1,37 @@
 from ScopeFoundry import Measurement, h5_io
 import pyqtgraph as pg
 import numpy as np
-from qtpy import QtWidgets
 from ScopeFoundry.helper_funcs import sibling_path, load_qt_ui_file
 import time
 
-class PicamReadoutMeasure(Measurement):
 
+class PicamReadoutMeasure(Measurement):
+    
     name = "picam_readout"
     
     def setup(self):
 
-        #local logged quantities
-        self.save_h5 = self.settings.New('save_h5', dtype = bool, initial=False)
-        self.continuous = self.settings.New('continuous', dtype=bool, initial=True)
-        self.wl_calib = self.settings.New('wl_calib', dtype=str, initial='pixels', 
-                          choices=('pixels', 'raw_pixels', 'acton_spectrometer', 'wave_numbers', 'raman_shifts'))
-        self.laser_wl = self.settings.New('laser_wl', initial = 532.0, vmin=1e-15)
-        
-        #connect events
-        
-        
-        self.display_update_period = 0.050 #seconds
-        self.spec_hw  = self.app.hardware['picam']
-        
-        
+        self.settings.New('save_h5', dtype=bool, initial=False)
+        self.settings.New('continuous', dtype=bool, initial=True)
+        self.settings.New('wl_calib', dtype=str, initial='pixels',
+                          choices=('pixels',
+                                   'raw_pixels',
+                                   'spectrometer',
+                                   'wave_numbers',
+                                   'raman_shifts'))
+        self.settings.New('laser_wl', initial=532.0, vmin=1e-15,
+                          unit='nm',
+                          description='used to calculate raman_shifts')
+        self.settings.New('count_rate', float, unit='Hz')
+        self.settings.New('spec_hw', str, initial='pi_spectrometer')
 
+        self.display_update_period = 0.050  # seconds
+        self.cam_hw = self.app.hardware['picam']
 
     def run(self):
 
-        cam = self.spec_hw.cam
+        S = self.settings
+        cam = self.cam_hw.cam
 
         print("rois|-->", cam.read_rois())
 
@@ -42,61 +44,59 @@ class PicamReadoutMeasure(Measurement):
             self.acq_time = time.time() - self.t0
 
             self.roi_data = cam.reshape_frame_data(dat)
-            #print "roi_data shapes", [d.shape for d in self.roi_data]            
-            self.spectrum = spec  = np.average(self.roi_data[0], axis=0)
+            self.spectrum = spec = np.average(self.roi_data[0], axis=0)
             
             px_index = np.arange(self.spectrum.shape[-1])
-            self.hbin = self.spec_hw.settings['roi_x_bin']
+            self.hbin = self.cam_hw.settings['roi_x_bin']
 
-            if 'acton_spectrometer' in self.app.hardware:
-                self.wls = self.app.hardware['acton_spectrometer'].get_wl_calibration(px_index, self.hbin)
+            if 'acton_spectrometer' in self.app.hardware and S['spec_hw'] == 'acton_spectrometer':
+                hw = self.app.hardware['acton_spectrometer']
+                self.wls = hw.get_wl_calibration(px_index, self.hbin)
+            elif 'pi_spectrometer' in self.app.hardware and S['spec_hw'] == 'pi_spectrometer':
+                hw = self.app.hardware['pi_spectrometer']
+                self.wls = hw.get_wl_calibration(px_index, self.hbin)
             else:
-                self.wls =  self.hbin*px_index + 0.5*(self.hbin-1)
-            self.pixels = self.hbin*px_index + 0.5*(self.hbin-1)
+                self.wls = self.hbin * px_index + 0.5 * (self.hbin - 1)
+            self.pixels = self.hbin * px_index + 0.5 * (self.hbin - 1)
             self.raw_pixels = px_index
-            self.wave_numbers = 1.0e7/self.wls
-            self.raman_shifts = 1.0e7/self.laser_wl.val - 1.0e7/self.wls
-            
+            self.wave_numbers = 1.0e7 / self.wls
+            self.raman_shifts = 1.0e7 / S['laser_wl'] - 1.0e7 / self.wls
             
             self.wls_mean = self.wls.mean()
 
-            if not self.continuous.val:
-                break
-            
-            
+            S['count_rate'] = spec.sum() / self.cam_hw.settings['ExposureTime']
 
-        if self.settings['save_h5']:
-            self.h5_file = h5_io.h5_base_file(self.app, measurement=self )
+            if not S['continuous']:
+                break
+
+        if S['save_h5']:
+            self.h5_file = h5_io.h5_base_file(self.app, measurement=self)
             self.h5_file.attrs['time_id'] = self.t0
-            H = self.h5_meas_group  =  h5_io.h5_create_measurement_group(self, self.h5_file)
+            H = self.h5_meas_group = h5_io.h5_create_measurement_group(self, self.h5_file)
               
             H['spectrum'] = spec
             H['wavelength'] = self.wls
             H['wave_numbers'] = self.wave_numbers
             H['raman_shifts'] = self.raman_shifts
             
-            print('saved file')
-            
             self.h5_file.close()
-            
 
     def setup_figure(self):
 
-
         self.ui = load_qt_ui_file(sibling_path(__file__, 'picam_readout.ui'))
         
-        self.spec_hw.settings.connected.connect_to_widget(self.ui.hw_connect_checkBox)
+        self.cam_hw.settings.connected.connect_to_widget(self.ui.hw_connect_checkBox)
         
-        self.spec_hw.settings.ExposureTime.connect_to_widget(self.ui.int_time_doubleSpinBox) 
-        self.spec_hw.settings.SensorTemperatureReading.connect_to_widget(self.ui.temp_doubleSpinBox) 
+        self.cam_hw.settings.ExposureTime.connect_to_widget(self.ui.int_time_doubleSpinBox) 
+        self.cam_hw.settings.SensorTemperatureReading.connect_to_widget(self.ui.temp_doubleSpinBox) 
 
         self.ui.start_pushButton.clicked.connect(self.start)
         self.ui.interrupt_pushButton.clicked.connect(self.interrupt)
-        self.ui.commit_pushButton.clicked.connect(self.spec_hw.commit_parameters)
+        self.ui.commit_pushButton.clicked.connect(self.cam_hw.commit_parameters)
 
-        self.save_h5.connect_to_widget(self.ui.save_h5_checkBox)
-        self.continuous.connect_to_widget(self.ui.continuous_checkBox)
-        self.wl_calib.connect_to_widget(self.ui.wl_calib_comboBox)
+        self.settings.save_h5.connect_to_widget(self.ui.save_h5_checkBox)
+        self.settings.continuous.connect_to_widget(self.ui.continuous_checkBox)
+        self.settings.wl_calib.connect_to_widget(self.ui.wl_calib_comboBox)
 
         import pyqtgraph.dockarea as dockarea
 
@@ -105,7 +105,7 @@ class PicamReadoutMeasure(Measurement):
         
         self.spec_plot = pg.PlotWidget()
         spec_dock = self.dockarea.addDock(name='Spec', position='below', widget=self.spec_plot)
-        self.spec_plot_line = self.spec_plot.plot([1,3,2,4,3,5])
+        self.spec_plot_line = self.spec_plot.plot([1, 3, 2, 4, 3, 5])
         self.spec_plot.enableAutoRange()
 
         self.img_graphlayout = pg.GraphicsLayoutWidget()
@@ -125,7 +125,6 @@ class PicamReadoutMeasure(Measurement):
         self.dockarea.addDock(name='PICAM', position='below', relativeTo=spec_dock, widget=self.cam_controls)
 
         spec_dock.raiseDock()
-
 
         """
         if hasattr(self, 'graph_layout'):
@@ -156,26 +155,29 @@ class PicamReadoutMeasure(Measurement):
         self.hist_lut.imageChanged(autoLevel=True, autoRange=True)
         
         wl_calib = self.settings['wl_calib']
-        if wl_calib=='acton_spectrometer':
+        if wl_calib == 'spectrometer':
             x = self.wls
-        elif wl_calib=='pixels':
+        elif wl_calib == 'pixels':
             x = self.pixels
-        elif wl_calib=='raw_pixels':
+        elif wl_calib == 'raw_pixels':
             x = self.raw_pixels
-        elif wl_calib=='wave_numbers':
+        elif wl_calib == 'wave_numbers':
             x = self.wave_numbers
-        elif wl_calib=='raman_shifts':
+        elif wl_calib == 'raman_shifts':
             x = self.raman_shifts            
             
         spec = np.average(self.roi_data[0], axis=0)
-        self.spec_plot_line.setData(x,spec)
+        self.spec_plot_line.setData(x, spec)
         self.spec_plot.setTitle("acq_time: {}".format(self.acq_time))
-        
         
     def get_spectrum(self):
         if hasattr(self, 'spectrum'):
-            return self.spectrum        # maybe not be generally true
+            return self.spectrum  # maybe not be generally true
     
     def get_roi_data(self):
         if hasattr(self, 'roi_data'):
-            return self.roi_data        # maybe not be generally true
+            return self.roi_data  # maybe not be generally true
+        
+    def get_wavelengths(self):
+        if hasattr(self, 'wls'):
+            return self.wls

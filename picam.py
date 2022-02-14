@@ -178,6 +178,7 @@ class PiCAM(object):
         #param_array = ctypes.POINTER(picam_ctypes.PicamParameter)()
         pcount = picam_ctypes.piint()
         
+        print('get_param_names', PI)
         self._err(PI.Picam_GetParameters(self.camera_handle, byref(param_array), byref(pcount)))
         data_p = ctypes.cast(param_array, ctypes.POINTER(ctypes.c_int))
         a = np.fromiter(data_p, dtype=int, count=pcount.value)    
