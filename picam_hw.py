@@ -70,6 +70,8 @@ class PicamHW(HardwareComponent):
             self.settings.get_lq(lqname).updated_value.connect(self.write_roi)
             
         self.write_roi()
+        self.cam.read_rois()
+        self.commit_parameters()
 
     def write_roi(self, a=None):
         self.log.debug('write_roi')

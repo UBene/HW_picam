@@ -26,11 +26,35 @@ class PicamReadoutMeasure(Measurement):
         self.settings.New('spec_hw', str, initial='pi_spectrometer',
                           choices=('pi_spectrometer',
                                      'acton_spectrometer'))
-
+        self.settings.New('flip_x', bool, initial=True)
+        self.settings.New('flip_y', bool, initial=False)
+        self.settings.New('background_subtract', bool, initial=False)
+        
         self.display_update_period = 0.050  # seconds
         self.cam_hw = self.app.hardware['picam']
         self.wls = np.arange(512)  # initialize dummy wls
-
+        self.background = np.zeros_like(self.wls)
+        self.spectrum = np.sin(self.wls)
+        self.add_operation('update_background', self.update_background)
+        
+    def read_cam_data(self):
+        dat = self.cam_hw.cam.acquire(readout_count=1, readout_timeout=-1)
+        roi_data = np.array(self.cam_hw.cam.reshape_frame_data(dat))
+        if self.settings['flip_x']:
+            roi_data = np.flip(roi_data, 0)
+        if self.settings['flip_y']:
+            roi_data = np.flip(roi_data, 1)
+        return roi_data
+    
+    def read_spectrum_data(self):
+        roi_data = self.read_cam_data()
+        return np.average(roi_data[0], axis=0)
+        
+    def update_background(self):
+        print('update_background')
+        self.background = self.read_spectrum_data()
+        self.settings['background_subtract'] = True
+        
     def run(self):
 
         S = self.settings
@@ -43,11 +67,14 @@ class PicamReadoutMeasure(Measurement):
         while not self.interrupt_measurement_called:
             self.t0 = time.time()
             
-            dat = cam.acquire(readout_count=1, readout_timeout=-1)
             self.acq_time = time.time() - self.t0
-
-            self.roi_data = cam.reshape_frame_data(dat)
-            self.spectrum = spec = np.average(self.roi_data[0], axis=0)
+            
+            self.roi_data = self.read_cam_data()
+            
+            self.spectrum = np.average(self.roi_data[0], axis=0)
+            if S['background_subtract']:
+                print(self.spectrum - self.background)
+                self.spectrum = self.spectrum - self.background
             
             px_index = np.arange(self.spectrum.shape[-1])
             self.hbin = self.cam_hw.settings['roi_x_bin']
@@ -67,7 +94,7 @@ class PicamReadoutMeasure(Measurement):
             
             self.wls_mean = self.wls.mean()
 
-            S['count_rate'] = spec.sum() / self.cam_hw.settings['ExposureTime']
+            S['count_rate'] = self.spectrum.sum() / self.cam_hw.settings['ExposureTime']
 
             if not S['continuous']:
                 break
@@ -77,7 +104,7 @@ class PicamReadoutMeasure(Measurement):
             self.h5_file.attrs['time_id'] = self.t0
             H = self.h5_meas_group = h5_io.h5_create_measurement_group(self, self.h5_file)
               
-            H['spectrum'] = spec
+            H['spectrum'] = self.spectrum
             H['wavelength'] = self.wls
             H['wave_numbers'] = self.wave_numbers
             H['raman_shifts'] = self.raman_shifts
@@ -99,6 +126,9 @@ class PicamReadoutMeasure(Measurement):
         self.settings.save_h5.connect_to_widget(self.ui.save_h5_checkBox)
         self.settings.continuous.connect_to_widget(self.ui.continuous_checkBox)
         self.settings.wl_calib.connect_to_widget(self.ui.wl_calib_comboBox)
+
+        self.settings.background_subtract.connect_to_widget(self.ui.background_subtract_checkBox)
+        self.ui.update_background_pushButton.clicked.connect(self.update_background)
 
         import pyqtgraph.dockarea as dockarea
 
@@ -168,8 +198,7 @@ class PicamReadoutMeasure(Measurement):
         elif wl_calib == 'raman_shifts':
             x = self.raman_shifts            
             
-        spec = np.average(self.roi_data[0], axis=0)
-        self.spec_plot_line.setData(x, spec)
+        self.spec_plot_line.setData(x, self.spectrum)
         self.spec_plot.setTitle("acq_time: {}".format(self.acq_time))
         
     def get_spectrum(self):
