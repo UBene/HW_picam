@@ -32,10 +32,14 @@ class PicamReadoutMeasure(Measurement):
         
         self.display_update_period = 0.050  # seconds
         self.cam_hw = self.app.hardware['picam']
-        self.wls = np.arange(512)  # initialize dummy wls
+        self.wls = np.arange(512) + 1  # initialize dummy wls
         self.background = np.zeros_like(self.wls)
         self.spectrum = np.sin(self.wls)
         self.add_operation('update_background', self.update_background)
+        self.data = {'spectrum':self.spectrum,
+                     'wavelengths':self.wls,
+                     'wave_numbers':1 / self.wls,
+                     'raman_shifts':self.wls}
         
     def read_cam_data(self):
         dat = self.cam_hw.cam.acquire(readout_count=1, readout_timeout=-1)
@@ -98,16 +102,19 @@ class PicamReadoutMeasure(Measurement):
 
             if not S['continuous']:
                 break
+            
+        self.data['spectrum'] = self.spectrum
+        self.data['wavelengths'] = self.wls
+        self.data['wave_numbers'] = self.wave_numbers
+        self.data['raman_shifts'] = self.raman_shifts        
 
         if S['save_h5']:
             self.h5_file = h5_io.h5_base_file(self.app, measurement=self)
             self.h5_file.attrs['time_id'] = self.t0
             H = self.h5_meas_group = h5_io.h5_create_measurement_group(self, self.h5_file)
-              
-            H['spectrum'] = self.spectrum
-            H['wavelength'] = self.wls
-            H['wave_numbers'] = self.wave_numbers
-            H['raman_shifts'] = self.raman_shifts
+
+            for k, v in self.data.items():
+                H[k] = v            
             
             self.h5_file.close()
 
