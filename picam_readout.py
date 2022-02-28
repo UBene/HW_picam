@@ -45,9 +45,9 @@ class PicamReadoutMeasure(Measurement):
         dat = self.cam_hw.cam.acquire(readout_count=1, readout_timeout=-1)
         roi_data = np.array(self.cam_hw.cam.reshape_frame_data(dat))
         if self.settings['flip_x']:
-            roi_data = np.flip(roi_data, 0)
+            roi_data = np.flip(roi_data, axis=-1)
         if self.settings['flip_y']:
-            roi_data = np.flip(roi_data, 1)
+            roi_data = np.flip(roi_data, -2)
         return roi_data
     
     def read_spectrum_data(self):
