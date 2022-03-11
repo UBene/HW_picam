@@ -98,7 +98,7 @@ class PicamReadoutMeasure(Measurement):
             
             self.wls_mean = self.wls.mean()
 
-            S['count_rate'] = self.spectrum.sum() / self.cam_hw.settings['ExposureTime']
+            S['count_rate'] = self.spectrum.sum() / (self.cam_hw.settings['ExposureTime']/1000.0)
 
             if not S['continuous']:
                 break
