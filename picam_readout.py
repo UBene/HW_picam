@@ -41,8 +41,8 @@ class PicamReadoutMeasure(Measurement):
                      'wave_numbers':1 / self.wls,
                      'raman_shifts':self.wls}
         
-    def read_cam_data(self, readout_count=1):
-        dat = self.cam_hw.cam.acquire(readout_count=readout_count, readout_timeout=-1)
+    def read_cam_data(self):
+        dat = self.cam_hw.cam.acquire(readout_count=1, readout_timeout=-1)
         roi_data = np.array(self.cam_hw.cam.reshape_frame_data(dat))
         if self.settings['flip_x']:
             roi_data = np.flip(roi_data, axis=-1)
@@ -50,23 +50,21 @@ class PicamReadoutMeasure(Measurement):
             roi_data = np.flip(roi_data, -2)
         return roi_data
     
-    def read_spectrum_data(self, readout_count=1):
-        roi_data = self.read_cam_data(readout_count=readout_count)
+    def read_spectrum_data(self):
+        roi_data = self.read_cam_data()
         return np.average(roi_data[0], axis=0)
         
     def update_background(self):
-        print(self.name, 'start updating background',
-              5 * self.cam_hw.settings['ExposureTime'] / 1000, 's')
-        self.background = self.read_spectrum_data(readout_count=5)         
+        print('update_background')
+        self.background = self.read_spectrum_data()
         self.settings['background_subtract'] = True
-        print(self.name, 'background updated')
         
     def run(self):
 
         S = self.settings
         cam = self.cam_hw.cam
 
-        # print("rois|-->", cam.read_rois())
+        #print("rois|-->", cam.read_rois())
 
         cam.commit_parameters()
         
@@ -76,8 +74,10 @@ class PicamReadoutMeasure(Measurement):
             self.acq_time = time.time() - self.t0
             
             self.roi_data = self.read_cam_data()
+            
             self.spectrum = np.average(self.roi_data[0], axis=0)
             if S['background_subtract']:
+                print(self.spectrum - self.background)
                 self.spectrum = self.spectrum - self.background
             
             px_index = np.arange(self.spectrum.shape[-1])
@@ -98,7 +98,7 @@ class PicamReadoutMeasure(Measurement):
             
             self.wls_mean = self.wls.mean()
 
-            S['count_rate'] = self.spectrum.sum() / (self.cam_hw.settings['ExposureTime'] / 1000.0)
+            S['count_rate'] = 1.0 * self.spectrum.sum() / (self.cam_hw.settings['ExposureTime'] / 1000.0)
 
             if not S['continuous']:
                 break
@@ -194,12 +194,17 @@ class PicamReadoutMeasure(Measurement):
         self.hist_lut.imageChanged(autoLevel=True, autoRange=True)
         
         wl_calib = self.settings['wl_calib']
-        x = {'spectrometer':self.wls,
-             'pixels':self.pixels,
-             'raw_pixels':self.raw_pixels,
-             'wave_numbers':self.wave_numbers,
-             'raman_shifts':self.raman_shifts }[self.settings['wl_calib']]
-                     
+        if wl_calib == 'spectrometer':
+            x = self.wls
+        elif wl_calib == 'pixels':
+            x = self.pixels
+        elif wl_calib == 'raw_pixels':
+            x = self.raw_pixels
+        elif wl_calib == 'wave_numbers':
+            x = self.wave_numbers
+        elif wl_calib == 'raman_shifts':
+            x = self.raman_shifts            
+            
         self.spec_plot_line.setData(x, self.spectrum)
         self.spec_plot.setTitle("acq_time: {}".format(self.acq_time))
         
