@@ -61,7 +61,10 @@ class PicamHW(HardwareComponent):
         if S["debug_mode"]:
             self.log.info("Connecting to PICAM")
 
-        self.cam = PiCAM(S["debug_mode"], S["dll_path"])
+        try:
+            self.cam = PiCAM(S["debug_mode"], S["dll_path"])
+        except OSError as err:
+            print("No dll found at picam setting dll_path:", S["dll_path"])
 
         supported_pnames = self.cam.get_param_names()
 
