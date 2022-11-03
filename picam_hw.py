@@ -15,17 +15,18 @@ class PicamHW(HardwareComponent):
 
     def setup(self):
         # Create logged quantities
-        self.settings.New("ccd_status", dtype=str, fmt="%s", ro=True)
-        self.settings.New("roi_x", dtype=int, initial=0, si=False)
-        self.settings.New("roi_w", dtype=int, initial=1340, si=False)
-        self.settings.New("roi_x_bin", dtype=int, initial=1, si=False)
-        self.settings.New("roi_y", dtype=int, initial=0, si=False)
-        self.settings.New("roi_h", dtype=int, initial=100, si=False)
-        self.settings.New("roi_y_bin", dtype=int, initial=1, si=False)
+        S = self.settings
+        S.New("ccd_status", dtype=str, fmt="%s", ro=True)
+        S.New("roi_x", dtype=int, initial=0, si=False)
+        S.New("roi_w", dtype=int, initial=1340, si=False)
+        S.New("roi_x_bin", dtype=int, initial=1, si=False)
+        S.New("roi_y", dtype=int, initial=0, si=False)
+        S.New("roi_h", dtype=int, initial=100, si=False)
+        S.New("roi_y_bin", dtype=int, initial=1, si=False)
 
         # Auto-generate settings from PicamParameters
         for name, param in PicamParameter.items():
-            self.settings["debug_mode"]: self.log.info(
+            S["debug_mode"]: self.log.info(
                 "params: {} {}".format(name, param)
             )
             dtype_translate = dict(FloatingPoint=float, Boolean=bool, Integer=int)
@@ -44,14 +45,12 @@ class PicamHW(HardwareComponent):
                     )
 
         # Customize auto-generated parameters
-        self.settings.ExposureTime.change_unit("ms")
-        self.settings.AdcSpeed.change_unit("MHz")
-        self.settings.New(
-            "dll_path",
-            str,
-            initial=r"C:\Program Files\Princeton Instruments\PICam\Runtime\Picam.dll",
-        )
-
+        S.ExposureTime.change_unit("ms")
+        S.AdcSpeed.change_unit("MHz")
+        S.New("dll_path", str,
+            initial=r"C:\Program Files\Princeton Instruments\PICam\Runtime\Picam.dll")
+        S.New("serial_number", int, initial=0, ro=True)
+        S.New("sensor_name", str, initial=0, ro=True)
         # operations
         self.add_operation("commit_parameters", self.commit_parameters)
 
@@ -75,7 +74,7 @@ class PicamHW(HardwareComponent):
                 lq = S.as_dict()[pname]
                 if S["debug_mode"]:
                     self.log.debug("lq.name {}".format(lq.name))
-                lq.hardware_read_func = lambda pname=pname: self.cam.read_param(pname)
+                lq.hardware_read_func = lambda pname = pname: self.cam.read_param(pname)
                 if S["debug_mode"]:
                     self.log.debug(
                         "lq.read_from_hardware() {}".format(lq.read_from_hardware())
@@ -84,7 +83,7 @@ class PicamHW(HardwareComponent):
                 if S["debug_mode"]:
                     self.log.debug("picam param rw {} {}".format(lq.name, rw))
                 if rw in ["ReadWriteTrivial", "ReadWrite"]:
-                    lq.hardware_set_func = lambda x, pname=pname: self.cam.write_param(
+                    lq.hardware_set_func = lambda x, pname = pname: self.cam.write_param(
                         pname, x
                     )
                 elif rw == "ReadOnly":
@@ -98,10 +97,13 @@ class PicamHW(HardwareComponent):
         self.write_roi()
         self.cam.read_rois()
         self.commit_parameters()
-
+        S['sensor_name'] = self.cam.camera_id.sensor_name.decode()
+        S['serial_number'] = self.cam.camera_id.serial_number
+        
     def write_roi(self, a=None):
-        self.debug_mode: self.log.debug("write_roi")
         S = self.settings
+        if S['debug_mode']: 
+            self.log.debug("write_roi")
         self.cam.write_single_roi(
             x=S["roi_x"],
             width=S["roi_w"],

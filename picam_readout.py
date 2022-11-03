@@ -4,31 +4,27 @@ import numpy as np
 from ScopeFoundry.helper_funcs import sibling_path, load_qt_ui_file
 import time
 
+WL_CALIB_CHOICES = ('pixels', 'raw_pixels', 'spectrometer', 'wave_numbers', 'raman_shifts')
+
 
 class PicamReadoutMeasure(Measurement):
     
     name = "picam_readout"
     
     def setup(self):
-
-        self.settings.New('save_h5', dtype=bool, initial=False)
-        self.settings.New('continuous', dtype=bool, initial=True)
-        self.settings.New('wl_calib', dtype=str, initial='pixels',
-                          choices=('pixels',
-                                   'raw_pixels',
-                                   'spectrometer',
-                                   'wave_numbers',
-                                   'raman_shifts'))
-        self.settings.New('laser_wl', initial=532.0, vmin=1e-15,
-                          unit='nm',
+        S = self.settings
+        S.New('save_h5', dtype=bool, initial=False)
+        S.New('continuous', dtype=bool, initial=True)
+        S.New('wl_calib', dtype=str, initial='pixels', choices=WL_CALIB_CHOICES)
+        S.New('laser_wl', initial=532.0, vmin=1e-15, unit='nm',
                           description='used to calculate raman_shifts')
-        self.settings.New('count_rate', float, unit='Hz')
-        self.settings.New('spec_hw', str, initial='pi_spectrometer',
+        S.New('count_rate', float, unit='Hz')
+        S.New('spec_hw', str, initial='pi_spectrometer',
                           choices=('pi_spectrometer',
                                      'acton_spectrometer'))
-        self.settings.New('flip_x', bool, initial=True)
-        self.settings.New('flip_y', bool, initial=False)
-        self.settings.New('background_subtract', bool, initial=False)
+        S.New('flip_x', bool, initial=True)
+        S.New('flip_y', bool, initial=False)
+        S.New('background_subtract', bool, initial=False)
         
         self.display_update_period = 0.050  # seconds
         self.cam_hw = self.app.hardware['picam']
@@ -41,8 +37,9 @@ class PicamReadoutMeasure(Measurement):
                      'wave_numbers':1 / self.wls,
                      'raman_shifts':self.wls}
         
-    def read_cam_data(self, readout_count=1):
-        dat = self.cam_hw.cam.acquire(readout_count=readout_count, readout_timeout=-1)
+    def read_cam_data(self, readout_count=1, readout_timeout=-1):
+        dat = self.cam_hw.cam.acquire(readout_count=readout_count,
+                                      readout_timeout=readout_timeout)
         roi_data = np.array(self.cam_hw.cam.reshape_frame_data(dat))
         if self.settings['flip_x']:
             roi_data = np.flip(roi_data, axis=-1)
@@ -71,17 +68,19 @@ class PicamReadoutMeasure(Measurement):
         
         while not self.interrupt_measurement_called:
             self.t0 = time.time()
-            
+        
+            self.acq_time = time.time() - self.t0
+        
+            self.roi_data = self.read_cam_data(readout_timeout=60_000)
             self.acq_time = time.time() - self.t0
             
-            self.roi_data = self.read_cam_data()
             self.spectrum = np.average(self.roi_data[0], axis=0)
             if S['background_subtract']:
                 self.spectrum = self.spectrum - self.background
-            
+        
             px_index = np.arange(self.spectrum.shape[-1])
             self.hbin = self.cam_hw.settings['roi_x_bin']
-
+        
             if 'acton_spectrometer' in self.app.hardware and S['spec_hw'] == 'acton_spectrometer':
                 hw = self.app.hardware['acton_spectrometer']
                 self.wls = hw.get_wl_calibration(px_index, self.hbin)
@@ -94,28 +93,27 @@ class PicamReadoutMeasure(Measurement):
             self.raw_pixels = px_index
             self.wave_numbers = 1.0e7 / self.wls
             self.raman_shifts = 1.0e7 / S['laser_wl'] - 1.0e7 / self.wls
-            
+        
             self.wls_mean = self.wls.mean()
-
+        
             S['count_rate'] = 1.0 * self.spectrum.sum() / (self.cam_hw.settings['ExposureTime'] / 1000.0)
-
-
+        
             if not S['continuous']:
                 break
             
-        self.data['spectrum'] = self.spectrum
-        self.data['wavelengths'] = self.wls
-        self.data['wave_numbers'] = self.wave_numbers
-        self.data['raman_shifts'] = self.raman_shifts        
+            self.data['spectrum'] = self.spectrum
+            self.data['wavelengths'] = self.wls
+            self.data['wave_numbers'] = self.wave_numbers
+            self.data['raman_shifts'] = self.raman_shifts        
 
         if S['save_h5']:
             self.h5_file = h5_io.h5_base_file(self.app, measurement=self)
             self.h5_file.attrs['time_id'] = self.t0
             H = self.h5_meas_group = h5_io.h5_create_measurement_group(self, self.h5_file)
-
+        
             for k, v in self.data.items():
                 H[k] = v            
-            
+        
             self.h5_file.close()
 
     def setup_figure(self):
@@ -160,7 +158,8 @@ class PicamReadoutMeasure(Measurement):
         self.hist_lut.setImageItem(self.img_item)
         self.img_graphlayout.addItem(self.hist_lut)
         
-        self.cam_controls = self.app.hardware['picam'].settings.New_UI(style='scroll_form')
+        self.cam_controls = self.app.hardware['picam'].New_UI(style='scroll_form')
+        
         self.dockarea.addDock(name='PICAM', position='below', relativeTo=spec_dock, widget=self.cam_controls)
 
         spec_dock.raiseDock()
@@ -193,7 +192,6 @@ class PicamReadoutMeasure(Measurement):
         self.img_item.setImage(self.roi_data[0].T.astype(float), autoLevels=False)
         self.hist_lut.imageChanged(autoLevel=True, autoRange=True)
         
-        wl_calib = self.settings['wl_calib']
         x = {'spectrometer':self.wls,
              'pixels':self.pixels,
              'raw_pixels':self.raw_pixels,
