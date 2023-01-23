@@ -5,65 +5,110 @@ import collections
 import time
 from . import picam_ctypes
 
-ROI_tuple = collections.namedtuple("ROI_tuple", "x width x_binning y height y_binning")
+ROI_tuple = collections.namedtuple(
+    "ROI_tuple", "x width x_binning y height y_binning")
+
+
+def print_struct_fields(s):
+    for field in s._fields_:
+        print("\t", field[0], getattr(s, field[0]))
+
+
+def open_camera(dll, desired_sn=None, debug=False):
+    '''returns handle and id of an (open) camera, 
+    if camera with the desired_sn is not found the first camera found is returned.
+    comment: this function could be a lot shorter if I got dll.Picam_GetAvailableCameraIDs to work'''
+
+    available = []
+    i_desired = 0
+
+    for i in range(10):
+        camera_handle = picam_ctypes.PicamHandle()
+        dll.Picam_OpenFirstCamera(byref(camera_handle))
+
+        camera_id = picam_ctypes.PicamCameraID()
+        dll.Picam_GetCameraID(camera_handle, byref(camera_id))
+
+        if camera_id.serial_number.decode() == "":
+            # no more unopened cameras
+            break
+
+        available.append((camera_handle, camera_id))
+        if camera_id.serial_number.decode() == desired_sn:
+            i_desired = i
+            break
+
+    if not available:
+        raise IOError('no picam device found')
+
+    if debug:
+        print(len(available), 'available cameras')
+        for camera_handle, camera_id in available:
+            print_struct_fields(camera_id)
+
+    # close all camera except the desired one
+    for i, (camera_handle, camera_id) in enumerate(available):
+        if i != i_desired:
+            dll.Picam_CloseCamera(camera_handle)
+        elif debug:
+            print('SELECTED CAMERA:')
+            print_struct_fields(camera_id)
+
+    return available[i_desired]
 
 
 class PiCAM:
+
     def __init__(
         self,
         debug=False,
         picam_dll_fname: str = r"C:\Program Files\Princeton Instruments\PICam\Runtime\Picam.dll",
+        desired_sn=None,
     ):
 
         self.pi = ctypes.cdll.LoadLibrary(picam_dll_fname)
-
         self.debug = debug
         self.pi.Picam_InitializeLibrary()
 
-        self.camera_handle = picam_ctypes.PicamHandle()
-        self.pi.Picam_OpenFirstCamera(byref(self.camera_handle))
-
-        self.camera_id = picam_ctypes.PicamCameraID()
-        self.pi.Picam_GetCameraID(self.camera_handle, byref(self.camera_id))
-        if self.debug:
-            print("camera_id", self.camera_id)
-
-            def print_struct_fields(s):
-                for field in s._fields_:
-                    print("\t", field[0], getattr(s, field[0]))
-
-            if self.debug:
-                print_struct_fields(self.camera_id)
+        self.camera_handle, self.camera_id = open_camera(
+            self.pi, desired_sn, debug)
 
         # model_name_buf = ctypes.create_string_buffer(256)
-
         # This is only useful in DEBUG mode because model_name_buf and its
         # content gets destroyed right after initialisation
-        model_name_buf = ctypes.c_char_p()
-        self.pi.Picam_GetEnumerationString(
-            picam_ctypes.PicamEnumeratedTypeEnum.bysname["Model"],
-            self.camera_id.model,
-            byref(model_name_buf),
-        )
-        if self.debug:
-            print(
-                "Camera Handle: {}\n Model: {}\n Model Name: {}\n ModelEnum={}".format(
-                    self.camera_handle,
-                    self.camera_id.model,
-                    str(model_name_buf.value),
-                    picam_ctypes.PicamModelEnum.bynums[self.camera_id.model],
-                )
-            )
-        self.pi.Picam_DestroyString(model_name_buf)
+        # model_name_buf = ctypes.c_char_p()
+        # self.pi.Picam_GetEnumerationString(
+        #     picam_ctypes.PicamEnumeratedTypeEnum.bysname["Model"],
+        #     self.camera_id.model,
+        #     byref(model_name_buf),
+        # )
+        # if self.debug:
+        #     print(
+        #         "Camera Handle: {}\n Model: {}\n Model Name: {}\n ModelEnum={}".format(
+        #             self.camera_handle,
+        #             self.camera_id.model,
+        #             str(model_name_buf.value),
+        #             picam_ctypes.PicamModelEnum.bynums[self.camera_id.model],
+        #         )
+        #     )
+        # self.pi.Picam_DestroyString(model_name_buf)
+        #
+        # if self.debug:
+        #     print(
+        #         (
+        #             "SN:{} [{}]".format(
+        #                 self.camera_id.serial_number, self.camera_id.sensor_name
+        #             )
+        #         )
+        #     )
 
-        if self.debug:
-            print(
-                (
-                    "SN:{} [{}]".format(
-                        self.camera_id.serial_number, self.camera_id.sensor_name
-                    )
-                )
-            )
+    @property
+    def sensor_name(self):
+        return self.camera_id.sensor_name.decode()
+
+    @property
+    def serial_number(self):
+        return self.camera_id.serial_number.decode()
 
     def close(self):
         self.pi.Picam_CloseCamera(self.camera_handle)
@@ -236,10 +281,12 @@ class PiCAM:
 
         self._err(
             self.pi.Picam_CommitParameters(
-                self.camera_handle, byref(failed_param_array), byref(failed_pcount)
+                self.camera_handle, byref(
+                    failed_param_array), byref(failed_pcount)
             )
         )
-        a = np.fromiter(failed_param_array, dtype=int, count=failed_pcount.value)
+        a = np.fromiter(failed_param_array, dtype=int,
+                        count=failed_pcount.value)
         self._err(self.pi.Picam_DestroyParameters(failed_param_array))
 
         return [picam_ctypes.PicamParameterEnum.bynums[x] for x in a]
@@ -282,7 +329,8 @@ class PiCAM:
         # print(rois_list)
         param = picam_ctypes.PicamParameter["PicamParameter_Rois"]
 
-        roi_np_array = np.empty(len(rois_list), dtype=type(picam_ctypes.PicamRoi))
+        roi_np_array = np.empty(
+            len(rois_list), dtype=type(picam_ctypes.PicamRoi))
 
         roi_array_type = picam_ctypes.PicamRoi * len(roi_np_array)
         roi_array = roi_array_type(*rois_list)
@@ -304,7 +352,8 @@ class PiCAM:
         # print(roi_np_array)
         print(rois.roi_array.contents)
         self._err(
-            self.pi.Picam_SetParameterRoisValue(self.camera_handle, param.enum, rois)
+            self.pi.Picam_SetParameterRoisValue(
+                self.camera_handle, param.enum, rois)
         )
 
     def write_single_roi(self, x, width, x_binning, y, height, y_binning):
@@ -387,7 +436,7 @@ class PiCAM:
             Nx = roi.width // roi.x_binning
             Ny = roi.height // roi.y_binning
             roi_size = Nx * Ny
-            dset = dat[offset : offset + roi_size].reshape(Ny, Nx)
+            dset = dat[offset: offset + roi_size].reshape(Ny, Nx)
             roi_datasets.append(dset)
             offset += roi_size
         return roi_datasets

@@ -1,10 +1,5 @@
 from ScopeFoundry import HardwareComponent
 
-try:
-    from .picam import PiCAM  # , ROI_tuple
-except Exception as err:
-    print("Could not load modules needed for PICAM CCD:", err)
-
 from . import picam_ctypes
 from .picam_ctypes import PicamParameter
 
@@ -14,8 +9,13 @@ class PicamHW(HardwareComponent):
     name = "picam"
 
     def setup(self):
-        # Create logged quantities
+        # Create settings
         S = self.settings
+        S.New("serial_number", str, initial="", ro=False,
+              description="""before connection: sn of desired camera, 
+                after connection: effective serial number 
+                (falls back to first camera if desired device was not found)""")
+
         S.New("ccd_status", dtype=str, fmt="%s", ro=True)
         S.New("roi_x", dtype=int, initial=0, si=False)
         S.New("roi_w", dtype=int, initial=1340, si=False)
@@ -29,7 +29,8 @@ class PicamHW(HardwareComponent):
             S["debug_mode"]: self.log.info(
                 "params: {} {}".format(name, param)
             )
-            dtype_translate = dict(FloatingPoint=float, Boolean=bool, Integer=int)
+            dtype_translate = dict(FloatingPoint=float,
+                                   Boolean=bool, Integer=int)
             if param.param_type in dtype_translate:
                 self.settings.New(
                     name=param.short_name, dtype=dtype_translate[param.param_type]
@@ -48,22 +49,22 @@ class PicamHW(HardwareComponent):
         S.ExposureTime.change_unit("ms")
         S.AdcSpeed.change_unit("MHz")
         S.New("dll_path", str,
-            initial=r"C:\Program Files\Princeton Instruments\PICam\Runtime\Picam.dll")
-        S.New("serial_number", int, initial=0, ro=True)
-        S.New("sensor_name", str, initial=0, ro=True)
+              initial=r"C:\Program Files\Princeton Instruments\Picam\Runtime\Picam.dll")
+        S.New("sensor_name", str, initial="", ro=True)
         # operations
         self.add_operation("commit_parameters", self.commit_parameters)
 
     def connect(self):
+        from .picam import PiCAM
+
         S = self.settings
 
         if S["debug_mode"]:
             self.log.info("Connecting to PICAM")
 
-        try:
-            self.cam = PiCAM(S["debug_mode"], S["dll_path"])
-        except OSError as err:
-            print("No dll found at picam setting dll_path:", S["dll_path"])
+        self.cam = PiCAM(debug=S["debug_mode"],
+                         picam_dll_fname=S["dll_path"],
+                         desired_sn=S["serial_number"])
 
         supported_pnames = self.cam.get_param_names()
 
@@ -74,7 +75,8 @@ class PicamHW(HardwareComponent):
                 lq = S.as_dict()[pname]
                 if S["debug_mode"]:
                     self.log.debug("lq.name {}".format(lq.name))
-                lq.hardware_read_func = lambda pname = pname: self.cam.read_param(pname)
+                lq.hardware_read_func = lambda pname = pname: self.cam.read_param(
+                    pname)
                 if S["debug_mode"]:
                     self.log.debug(
                         "lq.read_from_hardware() {}".format(lq.read_from_hardware())
@@ -97,12 +99,12 @@ class PicamHW(HardwareComponent):
         self.write_roi()
         self.cam.read_rois()
         self.commit_parameters()
-        S['sensor_name'] = self.cam.camera_id.sensor_name.decode()
-        S['serial_number'] = self.cam.camera_id.serial_number
-        
+        S['sensor_name'] = self.cam.sensor_name
+        S['serial_number'] = self.cam.serial_number
+
     def write_roi(self, a=None):
         S = self.settings
-        if S['debug_mode']: 
+        if S['debug_mode']:
             self.log.debug("write_roi")
         self.cam.write_single_roi(
             x=S["roi_x"],
