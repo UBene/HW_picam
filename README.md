@@ -34,3 +34,6 @@ History
 Plug-in has been used internally and has been stable.
 Check Git repository for detailed history. Tested on PI PIXIS CCD.
 
+### 0.2.0	2020-08-04	Connect to multiple cameras
+
+Tested with PI EMCCD, PI Pylon
