@@ -13,85 +13,94 @@
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1,0">
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0">
    <item>
-    <widget class="QWidget" name="control_widget" native="true">
-     <layout class="QGridLayout" name="gridLayout">
-      <item row="2" column="0">
-       <widget class="QCheckBox" name="hw_connect_checkBox">
-        <property name="maximumSize">
-         <size>
-          <width>110</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>HW Connect</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="7">
-       <widget class="QDoubleSpinBox" name="int_time_doubleSpinBox"/>
-      </item>
-      <item row="3" column="1">
-       <widget class="QPushButton" name="update_background_pushButton">
-        <property name="text">
-         <string>update background</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QCheckBox" name="background_subtract_checkBox">
-        <property name="text">
-         <string>background subtract</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="2">
-       <widget class="QCheckBox" name="save_h5_checkBox">
-        <property name="text">
-         <string>Save h5</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QCheckBox" name="continuous_checkBox">
-        <property name="text">
-         <string>continuous</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="7">
-       <widget class="QPushButton" name="start_pushButton">
-        <property name="text">
-         <string>Start</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="plot_groupBox">
-     <property name="title">
-      <string>Plot</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_2"/>
-    </widget>
-   </item>
-   <item>
-    <layout class="QFormLayout" name="formLayout">
-     <item row="0" column="0">
-      <widget class="QLabel" name="label_3">
-       <property name="text">
-        <string>x-axis</string>
+    <layout class="QHBoxLayout" name="cb_layout">
+     <item>
+      <widget class="QWidget" name="control_widget" native="true">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
        </property>
+       <layout class="QGridLayout" name="gridLayout">
+        <item row="2" column="9">
+         <widget class="QPushButton" name="update_background_pushButton">
+          <property name="text">
+           <string>update background</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="9">
+         <widget class="QCheckBox" name="background_subtract_checkBox">
+          <property name="text">
+           <string>background subtract</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="4">
+         <widget class="QCheckBox" name="hw_connect_checkBox">
+          <property name="maximumSize">
+           <size>
+            <width>110</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>HW Connect</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="4">
+         <widget class="QDoubleSpinBox" name="int_time_doubleSpinBox"/>
+        </item>
+        <item row="1" column="5">
+         <widget class="QCheckBox" name="continuous_checkBox">
+          <property name="text">
+           <string>continuous</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="6">
+         <widget class="QCheckBox" name="save_h5_checkBox">
+          <property name="text">
+           <string>Save h5</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="5" colspan="2">
+         <widget class="QPushButton" name="start_pushButton">
+          <property name="text">
+           <string>Start</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </widget>
      </item>
-     <item row="0" column="1">
-      <widget class="QComboBox" name="x_axis_comboBox"/>
-     </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QWidget" name="plot_widget" native="true">
+     <layout class="QVBoxLayout" name="plot_layout">
+      <property name="spacing">
+       <number>0</number>
+      </property>
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+     </layout>
+    </widget>
    </item>
   </layout>
  </widget>

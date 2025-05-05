@@ -25,7 +25,9 @@ Requirements
 	* numpy
 	* PICAM DLL
 	
-	
+
+download and install Picam SDK (potentially also included with lightfield)
+
 History
 --------
 
