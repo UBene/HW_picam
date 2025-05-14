@@ -1,0 +1,84 @@
+<interface>
+  <object
+    class="GtkDialog"
+    id="dialog"
+    >
+    <property name="title">Extrinsic Parameters</property>
+    <property name="resizable">FALSE</property>
+    <property name="border-width">12</property>
+    <property name="destroy-with-parent">TRUE</property>
+    <child
+      internal-child="vbox"
+      >
+      <object
+        class="GtkVBox"
+        id="vbox"
+        >
+        <property name="spacing">24</property>
+        <child>
+          <object
+            class="GtkVBox"
+            id="values_vbox"
+            >
+            <child>
+              <object
+                class="GtkLabel"
+                id="values_label"
+                >
+                <property name="label">Values:</property>
+                <property name="xalign">0</property>
+              </object>
+              <packing>
+                <property name="expand">FALSE</property>
+                <property name="fill">FALSE</property>
+              </packing>
+            </child>
+            <child>
+              <object
+                class="GtkScrolledWindow"
+                id="values_window"
+                >
+                <property name="shadow-type">GTK_SHADOW_IN</property>
+                <property name="hscrollbar-policy">GTK_POLICY_AUTOMATIC</property>
+                <property name="height-request">400</property>
+                <property name="width-request">500</property>
+                <child>
+                  <object
+                    class="GtkTextView"
+                    id="values_text_view"
+                    >
+                    <property name="editable">FALSE</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">FALSE</property>
+                <property name="fill">FALSE</property>
+              </packing>
+            </child>
+          </object>
+        </child>
+        <child
+          internal-child="action_area"
+          >
+          <object
+            class="GtkButtonBox"
+            id="button_box"
+            >
+            <child>
+              <object
+                class="GtkButton"
+                id="close_button"
+                >
+                <property name="label">Close</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="-7">close_button</action-widget>
+    </action-widgets>
+  </object>
+</interface>
