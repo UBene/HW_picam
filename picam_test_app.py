@@ -19,9 +19,12 @@ class PicamTestApp(BaseMicroscopeApp):
     def setup(self):
 
         from ScopeFoundryHW.picam import PicamHW, PicamReadoutMeasure
+        from ScopeFoundryHW.picam.picam_polling import PicamPolling
 
         self.add_hardware(PicamHW(self))
         self.add_measurement(PicamReadoutMeasure(self))
+
+        self.add_measurement(PicamPolling(self))
 
         # Add a second Picam camera
         # self.add_hardware(PicamHW(self, name='pylon'))

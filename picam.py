@@ -1,25 +1,22 @@
 import collections
 import ctypes
 import time
-from ctypes import byref
 
 import numpy as np
 
 from . import picam_ctypes
 from .picam_cam_manager import OPEN_FIRST, manager
 
-ROI_tuple = collections.namedtuple(
-    'ROI_tuple', "x width x_binning y height y_binning")
-
-PI = manager.get_dll()
+ROI_tuple = collections.namedtuple("ROI_tuple", "x width x_binning y height y_binning")
 
 
 class PiCAM(object):
 
     def __init__(self, debug=False, target_sn=OPEN_FIRST):
         self.debug = debug
-        self.camera_handle, self.camera_id = manager.open_camera(
-            target_sn)
+
+        self.dll = manager.get_dll()
+        self.camera_handle, self.camera_id = manager.open_camera(target_sn)
         self.supports_rois = self.can_set_first_px_as_roi()
 
     def sensor_name(self):
@@ -32,40 +29,54 @@ class PiCAM(object):
         manager.close_camera(self.camera_handle)
 
     def read_param(self, pname):
-        if self.debug:
-            print(("read_param", pname))
 
         param = picam_ctypes.PicamParameter["PicamParameter_" + pname]
 
         ptype = param.param_type
-        if ptype in ['Integer', 'Boolean', 'i', 'I', int]:
+        if ptype in ["Integer", "Boolean", "i", "I", int]:
             val = picam_ctypes.piint()
-            self._err(PI.Picam_GetParameterIntegerValue(
-                self.camera_handle, param.enum, byref(val)))
-        elif ptype in ['LargeInteger']:
+            self._err(
+                self.dll.Picam_GetParameterIntegerValue(
+                    self.camera_handle, param.enum, ctypes.byref(val)
+                )
+            )
+        elif ptype in ["LargeInteger"]:
             val = picam_ctypes.pi64s()
-            self._err(PI.Picam_GetParameterLargeIntegerValue(
-                self.camera_handle, param.enum, byref(val)))
-        elif ptype in ['FloatingPoint', 'f', 'F', float]:
+            self._err(
+                self.dll.Picam_GetParameterLargeIntegerValue(
+                    self.camera_handle, param.enum, ctypes.byref(val)
+                )
+            )
+        elif ptype in ["FloatingPoint", "f", "F", float]:
             val = ctypes.c_double()
-            self._err(PI.Picam_GetParameterFloatingPointValue(
-                self.camera_handle, param.enum, byref(val)))
-        elif ptype in ['Enumeration']:
+            self._err(
+                self.dll.Picam_GetParameterFloatingPointValue(
+                    self.camera_handle, param.enum, ctypes.byref(val)
+                )
+            )
+        elif ptype in ["Enumeration"]:
             val = ctypes.c_int()
-            self._err(PI.Picam_GetParameterIntegerValue(
-                self.camera_handle, param.enum, byref(val)))
+            self._err(
+                self.dll.Picam_GetParameterIntegerValue(
+                    self.camera_handle, param.enum, ctypes.byref(val)
+                )
+            )
             enum_name = "Picam{}Enum".format(pname)
+
             if hasattr(picam_ctypes, enum_name):
                 enum_obj = getattr(picam_ctypes, enum_name)
                 enum_name = enum_obj.bynums[val.value]
-                # print "PI_read_param", pname, ptype, val, repr(val.value), enum_name
+                # print "self.dll_read_param", pname, ptype, val, repr(val.value), enum_name
                 # return val.value, enum_name
                 return enum_name
 
-        elif ptype in ['Rois']:
+        elif ptype in ["Rois"]:
             rois_p = ctypes.POINTER(picam_ctypes.PicamRois)()
-            self._err(PI.Picam_GetParameterRoisValue(
-                self.camera_handle, param.enum, byref(rois_p)))
+            self._err(
+                self.dll.Picam_GetParameterRoisValue(
+                    self.camera_handle, param.enum, ctypes.byref(rois_p)
+                )
+            )
             rois = rois_p.contents
             # print "roi_count", rois.roi_count
             # print "roi_array",rois.roi_array[0]
@@ -76,24 +87,28 @@ class PiCAM(object):
             # Populate the tuple using a loop instead of direct assignment
             roi_dict_array = list(np.empty(rois.roi_count))
             for i in range(rois.roi_count):
-                itup = ROI_tuple(rois.roi_array[i].x,
-                                 rois.roi_array[i].width,
-                                 rois.roi_array[i].x_binning,
-                                 rois.roi_array[i].y,
-                                 rois.roi_array[i].height,
-                                 rois.roi_array[i].y_binning,
-                                 )
+                itup = ROI_tuple(
+                    rois.roi_array[i].x,
+                    rois.roi_array[i].width,
+                    rois.roi_array[i].x_binning,
+                    rois.roi_array[i].y,
+                    rois.roi_array[i].height,
+                    rois.roi_array[i].y_binning,
+                )
                 roi_dict_array[i] = itup
 
-            self._err(PI.Picam_DestroyRois(rois_p))
+            self._err(self.dll.Picam_DestroyRois(rois_p))
             return roi_dict_array
         else:
             raise ValueError(
-                "PI_read_param ptype not understood: {}".format(repr(ptype)))
+                "PI_read_param ptype not understood: {}".format(repr(ptype))
+            )
+        if self.debug:
+            print("read_param", pname, ptype, val, repr(val.value))
 
-        # print "read_param", pname, ptype, val, repr(val.value)
-        if ptype == 'Boolean':
+        if ptype == "Boolean":
             return bool(val.value)
+
         return val.value
 
     def write_param(self, pname, newval):
@@ -101,39 +116,67 @@ class PiCAM(object):
         ptype = param.param_type
 
         if self.debug:
-            print('write_param', pname, newval, ptype, param)
+            print("write_param", pname, newval, ptype, param)
 
         # TODO check for read only
-        
-        
+        if ptype == "Boolean":
+            newval = int(newval)
 
-        if ptype in ['Integer', 'i', 'I', int]:
+        if ptype in ["Integer", "i", "I", int, "Boolean"]:
             settable = ctypes.c_int()
-            self._err(PI.Picam_CanSetParameterIntegerValue(
-                self.camera_handle, param.enum, newval, byref(settable)))
+            self._err(
+                self.dll.Picam_CanSetParameterIntegerValue(
+                    self.camera_handle, param.enum, newval, ctypes.byref(settable)
+                )
+            )
             if not settable.value:
                 raise ValueError(
-                    "PICAM write_param failed: {} --> {} not allowed".format(pname, newval))
-            self._err(PI.Picam_SetParameterIntegerValue(
-                self.camera_handle, param.enum, newval))
-        elif ptype in ['FloatingPoint', 'f', 'F', float]:
-            self._err(PI.Picam_SetParameterFloatingPointValue(
-                self.camera_handle, param.enum, picam_ctypes.piflt(newval)))
-        elif ptype in ['Enumeration']:
+                    "PICAM write_param failed: {} --> {} not allowed".format(
+                        pname, newval
+                    )
+                )
+            self._err(
+                self.dll.Picam_SetParameterIntegerValue(
+                    self.camera_handle, param.enum, newval
+                )
+            )
+
+        elif ptype in [
+            "LargeInteger",
+        ]:
+            self._err(
+                self.dll.Picam_SetParameterLargeIntegerValue(
+                    self.camera_handle, param.enum, picam_ctypes.pi64s(newval)
+                )
+            )
+        elif ptype in ["FloatingPoint", "f", "F", float]:
+            self._err(
+                self.dll.Picam_SetParameterFloatingPointValue(
+                    self.camera_handle, param.enum, picam_ctypes.piflt(newval)
+                )
+            )
+        elif ptype in ["Enumeration"]:
             enum_name = "Picam{}Enum".format(param.short_name)
             if not hasattr(picam_ctypes, enum_name):
                 raise ValueError(
-                    "PICAM write_param failed: {} --> {} not allowed".format(pname, newval))
+                    "self.dllCAM write_param failed: {} --> {} not allowed".format(
+                        pname, newval
+                    )
+                )
             enum_obj = getattr(picam_ctypes, enum_name)
             newval_id = enum_obj.bysname[newval]
             if self.debug:
-                print('enum', newval, newval_id)
-            self._err(PI.Picam_SetParameterIntegerValue(
-                self.camera_handle, param.enum, newval_id))
+                print("enum", newval, newval_id)
+            self._err(
+                self.dll.Picam_SetParameterIntegerValue(
+                    self.camera_handle, param.enum, newval_id
+                )
+            )
 
         else:
             raise ValueError(
-                "PI write_param ptype not understood: {}".format(repr(ptype)))
+                "PI write_param ptype not understood: {}".format(repr(ptype))
+            )
 
     def get_param_readwrite(self, pname):
         """
@@ -145,46 +188,88 @@ class PiCAM(object):
         ##
         PicamValueAccess_ReadOnly         = 1,
         PicamValueAccess_ReadWriteTrivial = 3,
-        PicamValueAccess_ReadWrite        = 2     
+        PicamValueAccess_ReadWrite        = 2
         """
         param = picam_ctypes.PicamParameter["PicamParameter_" + pname]
         access = ctypes.c_int(0)
 
-        self._err(PI.Picam_GetParameterValueAccess(
-            self.camera_handle, param.enum, byref(access)))
+        err = self.dll.Picam_GetParameterValueAccess(
+            self.camera_handle, param.enum, ctypes.byref(access)
+        )
+        err_str = picam_ctypes.PicamErrorEnum.bynum[err]
+        if err_str == "PicamError_ParameterDoesNotExist":
+            return None
         if self.debug:
             print("get_param_readwrite", pname, access, access.value)
-        return picam_ctypes.PicamValueAccess[access.value].split('_')[-1]
+        return picam_ctypes.PicamValueAccess[access.value].split("_")[-1]
+
+    def are_parameters_committed(self):
+        committed = picam_ctypes.pibln()
+        err = self.dll.Picam_AreParametersCommitted(
+            self.camera_handle, ctypes.byref(committed)
+        )
+        print("Picam parameters committed:", committed.value)
+        return committed.value
+
+    def handle_failed_parameters(self):
+        failed_parameter_array = ctypes.POINTER()(None)
+        failed_parameter_count = picam_ctypes.piint(0)
+        self.dll.Picam_CommitParameters(
+            self.camera_handle,
+            ctypes.byref(failed_parameter_array),
+            ctypes.byref(failed_parameter_count),
+        )
+
+        if failed_parameter_count.value != 0:
+            self.dll.failed_parameter_array
 
     def commit_parameters(self):
 
         failed_param_array = ctypes.POINTER(ctypes.c_int)()
         failed_pcount = picam_ctypes.piint()
 
-        self._err(PI.Picam_CommitParameters(self.camera_handle,
-                  byref(failed_param_array), byref(failed_pcount)))
-        a = np.fromiter(failed_param_array, dtype=int,
-                        count=failed_pcount.value)
-        self._err(PI.Picam_DestroyParameters(failed_param_array))
+        self._err(
+            self.dll.Picam_CommitParameters(
+                self.camera_handle, ctypes.byref(failed_param_array), ctypes.byref(failed_pcount)
+            )
+        )
+        a = np.fromiter(failed_param_array, dtype=int, count=failed_pcount.value)
+        self._err(self.dll.Picam_DestroyParameters(failed_param_array))
 
         return [picam_ctypes.PicamParameterEnum.bynums[x] for x in a]
+
+    def commit_parameters_and_destroy_failed(self):
+        failed_param_array = ctypes.POINTER(ctypes.c_int)()
+        failed_pcount = picam_ctypes.piint()
+
+        self._err(
+            self.dll.Picam_CommitParameters(
+                self.camera_handle, ctypes.byref(failed_param_array), ctypes.byref(failed_pcount)
+            )
+        )
+        if failed_pcount != 0:
+            self.dll.Picam_DestroyParameters(failed_param_array)
 
     def get_param_names(self):
 
         param_array = ctypes.c_void_p()
         pcount = picam_ctypes.piint()
 
-        self._err(PI.Picam_GetParameters(
-            self.camera_handle, byref(param_array), byref(pcount)))
+        self._err(
+            self.dll.Picam_GetParameters(
+                self.camera_handle, ctypes.byref(param_array), ctypes.byref(pcount)
+            )
+        )
         data_p = ctypes.cast(param_array, ctypes.POINTER(ctypes.c_int))
         a = np.fromiter(data_p, dtype=int, count=pcount.value)
-        self._err(PI.Picam_DestroyParameters(param_array))
+        self._err(self.dll.Picam_DestroyParameters(param_array))
         param_list = []
 
         # Skip invalid parameters
         for x in a:
+            print(hex(x), picam_ctypes.PicamParameterEnum.bynums[x])
             if x in picam_ctypes.PicamParameterEnum.bynums:
-                # print(picam_ctypes.PicamParameterEnum.bynums[x])
+                # print(hex(x), picam_ctypes.PicamParameterEnum.bynums[x])
                 param_list.append(picam_ctypes.PicamParameterEnum.bynums[x])
             else:
                 print(picam_ctypes.PicamParameterEnum.bynums[x])
@@ -194,23 +279,25 @@ class PiCAM(object):
     def read_rois(self):
         if not self.supports_rois:
             return
-        self.roi_array = self.read_param('Rois')
+        self.roi_array = self.read_param("Rois")
         return self.roi_array
 
     def can_set_first_px_as_roi(self):
         rois_list = [ROI_tuple(0, 1, 1, 0, 1, 1)]
         param = picam_ctypes.PicamParameter["PicamParameter_Rois"]
         rois = picam_ctypes.PicamRois()
-        roi_np_array = np.empty(
-            len(rois_list), dtype=type(picam_ctypes.PicamRoi))
-        roi_array_type = picam_ctypes.PicamRoi*len(roi_np_array)
+        roi_np_array = np.empty(len(rois_list), dtype=type(picam_ctypes.PicamRoi))
+        roi_array_type = picam_ctypes.PicamRoi * len(roi_np_array)
         roi_array = roi_array_type(*rois_list)
         rois.roi_array = roi_array
         rois.roi_count = picam_ctypes.piint(len(roi_np_array))
         can_set = ctypes.c_bool()
         try:
-            self._err(PI.Picam_CanSetParameterRoisValue(
-                self.camera_handle, param.enum, rois, byref(can_set)))
+            self._err(
+                self.dll.Picam_CanSetParameterRoisValue(
+                    self.camera_handle, param.enum, rois, ctypes.byref(can_set)
+                )
+            )
             return can_set.value
         except IOError:
             return False
@@ -218,23 +305,24 @@ class PiCAM(object):
     def write_rois(self, rois_list):
         if not self.supports_rois:
             print(
-                'setting rois not supported: If you believe that your camera does support check initializer')
+                "setting rois not supported: If you believe that your camera does support check initializer"
+            )
             return
 
         param = picam_ctypes.PicamParameter["PicamParameter_Rois"]
 
-        roi_np_array = np.empty(
-            len(rois_list), dtype=type(picam_ctypes.PicamRoi))
+        roi_np_array = np.empty(len(rois_list), dtype=type(picam_ctypes.PicamRoi))
 
-        roi_array_type = picam_ctypes.PicamRoi*len(roi_np_array)
+        roi_array_type = picam_ctypes.PicamRoi * len(roi_np_array)
         roi_array = roi_array_type(*rois_list)
 
         rois = picam_ctypes.PicamRois()
         rois.roi_array = roi_array
         rois.roi_count = picam_ctypes.piint(len(roi_np_array))
 
-        self._err(PI.Picam_SetParameterRoisValue(
-            self.camera_handle, param.enum, rois))
+        self._err(
+            self.dll.Picam_SetParameterRoisValue(self.camera_handle, param.enum, rois)
+        )
         self.read_rois()
 
     def write_single_roi(self, x, width, x_binning, y, height, y_binning):
@@ -242,7 +330,7 @@ class PiCAM(object):
 
     def acquire(self, readout_count=1, readout_timeout=-1):
         readout_count = picam_ctypes.pi64s(readout_count)
-        readout_time_out = picam_ctypes.piint(readout_timeout)
+        readout_timeout = picam_ctypes.piint(readout_timeout)
         available = picam_ctypes.PicamAvailableData()
         errors = ctypes.c_int()
 
@@ -250,8 +338,15 @@ class PiCAM(object):
 
         if self.debug:
             t0 = time.time()
-        self._err(PI.Picam_Acquire(self.camera_handle, readout_count,
-                  readout_time_out, byref(available), byref(errors)))
+        self._err(
+            self.dll.Picam_Acquire(
+                self.camera_handle,
+                readout_count,
+                readout_timeout,
+                ctypes.byref(available),
+                ctypes.byref(errors),
+            )
+        )
         if self.debug:
             print("Picam_Acquire time", time.time() - t0)
             print("available.initial_readout: ", available.initial_readout)
@@ -259,38 +354,15 @@ class PiCAM(object):
             print("Initial readout type is", type(available.initial_readout))
 
         # t0 = time.time()
-        data_p = ctypes.cast(available.initial_readout, ctypes.POINTER(
-            picam_ctypes.pi16s*(self.read_param('ReadoutStride')//2)))
+        data_p = ctypes.cast(
+            available.initial_readout,
+            ctypes.POINTER(picam_ctypes.pi16s * (self.read_readout_stride() // 2)),
+        )
         # data = np.fromiter(data_p, dtype=np.int16, count=readout_count.value*self.read_param('ReadoutStride'))
         data = np.frombuffer(data_p.contents, dtype=np.uint16)
         # print("data conversion time", time.time() - t0)
 
         return data
-
-        '''
-        def get_data(self):
-        """ Routine to access initial data.
-        Returns numpy array with shape (400,1340) """
-
-        """ Create an array type to hold 1340x400 16bit integers """
-        DataArrayType = pi16u*self.myroi.width*self.myroi.height
-
-        """ Create pointer type for the above array type """
-        DataArrayPointerType = ctypes.POINTER(pi16u*self.myroi.width*self.myroi.height)
-
-        """ Create an instance of the pointer type, and point it to initial readout contents (memory address?) """
-        DataPointer = ctypes.cast(self.available.initial_readout,DataArrayPointerType)
-
-
-        """ Create a separate array with readout contents """
-        # TODO, check this stuff for slowdowns
-        rawdata = DataPointer.contents
-        numpydata = numpy.frombuffer(rawdata, dtype='uint16')
-        data = numpy.reshape(numpydata,(self.myroi.height,self.myroi.width))  # TODO: get dimensions officially,
-        # note, the readoutstride is the number of bytes in the array, not the number of elements
-        # will need to be smarter about the array size, but for now it works.
-        return data
-        '''
 
     def reshape_frame_data(self, dat):
         if not self.supports_rois:
@@ -300,10 +372,10 @@ class PiCAM(object):
         roi_datasets = []
         offset = 0
         for roi in roi_array:
-            Nx = roi.width//roi.x_binning
-            Ny = roi.height//roi.y_binning
-            roi_size = Nx*Ny
-            dset = dat[offset:offset+roi_size].reshape(Ny, Nx)
+            Nx = roi.width // roi.x_binning
+            Ny = roi.height // roi.y_binning
+            roi_size = Nx * Ny
+            dset = dat[offset : offset + roi_size].reshape(Ny, Nx)
             roi_datasets.append(dset)
             offset += roi_size
         return roi_datasets
@@ -316,12 +388,59 @@ class PiCAM(object):
             raise IOError(err_str)
 
     def read_roi_data(self, readout_count=1, readout_timeout=-1):
-        dat = self.acquire(readout_count=readout_count,
-                           readout_timeout=readout_timeout)
+        dat = self.acquire(readout_count=readout_count, readout_timeout=readout_timeout)
         return np.array(self.reshape_frame_data(dat))
 
+    # Functions related to polling
+    def init_polling(self, readout_timeout=-1):
+        self.readout_time_out = picam_ctypes.piint(readout_timeout)
+        self.available = picam_ctypes.PicamAvailableData()
+        self.status = picam_ctypes.PicamAcquisitionStatus()
+        self.stride = self.read_readout_stride()
 
-if __name__ == '__main__':
+    def wait_for_acquisition_update(self):
+        """call PiCAM.wait_for_acquisition_update (once) first"""
+        err = self.dll.Picam_WaitForAcquisitionUpdate(
+            self.camera_handle,
+            self.readout_time_out,
+            ctypes.byref(self.available),
+            ctypes.byref(self.status),
+        )
+
+        if err == picam_ctypes.PicamErrorEnum.byname["PicamError_TimeOutOccurred"]:
+            print("Picam_WaitForAcquisitionUpdate timed out")
+            self.stop_acquisition()
+        return self.status.running, self.available.readout_count
+
+    def get_polled_data(self):
+        """call PiCAM.init_polling and PiCAM.wait_for_acquisition_update first"""
+        data_p = ctypes.cast(
+            self.available.initial_readout,
+            ctypes.POINTER(picam_ctypes.pibyte * self.stride),
+        )
+        return np.frombuffer(data_p.contents, dtype=np.uint16)
+
+    def get_shaped_polled_data(self, imshape):
+        return self.get_polled_data().reshape(imshape)
+
+    def read_readout_stride(self):
+        readout_stride = self.read_param("ReadoutStride")
+        if self.debug:
+            print("read_readout_stride", readout_stride)
+        return readout_stride
+
+    def start_acquisition(self):
+        self._err(self.dll.Picam_StartAcquisition(self.camera_handle))
+        if self.debug:
+            print("Picam_StartAcquisition")
+
+    def stop_acquisition(self):
+        self._err(self.dll.Picam_StopAcquisition(self.camera_handle))
+        if self.debug:
+            print("Picam_StopAcquisition")
+
+
+if __name__ == "__main__":
 
     cam = PiCAM(debug=True)
 
@@ -336,20 +455,21 @@ if __name__ == '__main__':
 
     readoutstride = cam.read_param("ReadoutStride")
 
-    cam.write_param('ExposureTime', 100)
-    print("exposuretime", cam.read_param('ExposureTime'))
+    cam.write_param("ExposureTime", 100)
+    print("exposuretime", cam.read_param("ExposureTime"))
 
     print("commit", cam.commit_parameters())
 
-    cam.read_param('PixelHeight')
-    cam.read_param('SensorTemperatureReading')
-    cam.read_param('SensorTemperatureStatus')
-    cam.read_param('ExposureTime')  # milliseconds
-    cam.write_param('ExposureTime', 100.)
+    cam.read_param("PixelHeight")
+    cam.read_param("SensorTemperatureReading")
+    cam.read_param("SensorTemperatureStatus")
+    cam.read_param("ExposureTime")  # milliseconds
+    cam.write_param("ExposureTime", 100.0)
 
     # cam.write_rois([dict(x=0, width=100,x_binning=1, y=0, height=20, y_binning=1)])
     cam.write_rois(
-        [ROI_tuple(x=0, width=1340, x_binning=1, y=0, height=100, y_binning=1)])
+        [ROI_tuple(x=0, width=1340, x_binning=1, y=0, height=100, y_binning=1)]
+    )
     print("rois|-->", cam.read_rois())
 
     print("roi0:", repr(cam.roi_array[0]))
@@ -363,7 +483,7 @@ if __name__ == '__main__':
     t0 = time.time()
     dat = cam.acquire(ex_time)
     t1 = time.time()
-    print("data acquisition of exp_time of {} sec took {} sec".format(ex_time, t1-t0))
+    print("data acquisition of exp_time of {} sec took {} sec".format(ex_time, t1 - t0))
     print("dat.shape", dat.shape)
 
     roi_data = cam.reshape_frame_data(dat)
@@ -373,7 +493,11 @@ if __name__ == '__main__':
 
     # plt.plot(roi_data[0].squeeze())
     # plt.ylim(np.percentile(roi_data[0], 1), np.percentile(roi_data[0],80))
-    plt.imshow(roi_data[0], interpolation='none', vmin=np.percentile(
-        dat, 1), vmax=np.percentile(dat, 99))
+    plt.imshow(
+        roi_data[0],
+        interpolation="none",
+        vmin=np.percentile(dat, 1),
+        vmax=np.percentile(dat, 99),
+    )
     plt.show()
     cam.close()
