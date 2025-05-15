@@ -16,7 +16,8 @@ class PiCAM(object):
         self.debug = debug
 
         self.dll = manager.get_dll()
-        self.camera_handle, self.camera_id = manager.open_camera(target_sn)
+        # open_camera is the slow step
+        self.camera_handle, self.camera_id = manager.open_camera(target_sn, debug)
         self.supports_rois = self.can_set_first_px_as_roi()
 
     def sensor_name(self):
@@ -230,7 +231,9 @@ class PiCAM(object):
 
         self._err(
             self.dll.Picam_CommitParameters(
-                self.camera_handle, ctypes.byref(failed_param_array), ctypes.byref(failed_pcount)
+                self.camera_handle,
+                ctypes.byref(failed_param_array),
+                ctypes.byref(failed_pcount),
             )
         )
         a = np.fromiter(failed_param_array, dtype=int, count=failed_pcount.value)
@@ -244,7 +247,9 @@ class PiCAM(object):
 
         self._err(
             self.dll.Picam_CommitParameters(
-                self.camera_handle, ctypes.byref(failed_param_array), ctypes.byref(failed_pcount)
+                self.camera_handle,
+                ctypes.byref(failed_param_array),
+                ctypes.byref(failed_pcount),
             )
         )
         if failed_pcount != 0:
@@ -267,7 +272,7 @@ class PiCAM(object):
 
         # Skip invalid parameters
         for x in a:
-            print(hex(x), picam_ctypes.PicamParameterEnum.bynums[x])
+            # print(hex(x), picam_ctypes.PicamParameterEnum.bynums[x])
             if x in picam_ctypes.PicamParameterEnum.bynums:
                 # print(hex(x), picam_ctypes.PicamParameterEnum.bynums[x])
                 param_list.append(picam_ctypes.PicamParameterEnum.bynums[x])

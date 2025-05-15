@@ -17,8 +17,8 @@ def _read_available_camera_ids(dll, debug=False):
     id_count = piint()
     dll.Picam_GetAvailableCameraIDs(ctypes.byref(ptr), ctypes.byref(id_count))
     if debug:
-        print('read_available_cameras counts:', id_count.value)
-    return ctypes.cast(ptr, ctypes.POINTER(PicamCameraID*id_count.value))[0]
+        print("read_available_cameras counts:", id_count.value)
+    return ctypes.cast(ptr, ctypes.POINTER(PicamCameraID * id_count.value))[0]
 
 
 def open_camera_by_sn(dll, sn, debug=False) -> Tuple[PicamHandle, PicamCameraID]:
@@ -28,10 +28,9 @@ def open_camera_by_sn(dll, sn, debug=False) -> Tuple[PicamHandle, PicamCameraID]
             print(camera_id.serial_number.decode(), sn)
         if camera_id.serial_number.decode() == sn:
             camera_handle = PicamHandle()
-            dll.Picam_OpenCamera(ctypes.byref(camera_id),
-                                 ctypes.byref(camera_handle))
+            dll.Picam_OpenCamera(ctypes.byref(camera_id), ctypes.byref(camera_handle))
             return camera_handle, camera_id
-    raise IOError(f'camera with {sn=} not found')
+    raise IOError(f"camera with {sn=} not found")
 
 
 def open_first_camera(dll, debug=False) -> Tuple[PicamHandle, PicamCameraID]:
@@ -48,12 +47,17 @@ class PicamCamManager:
         self.debug = debug
 
     def get_dll(self):
-        if not hasattr(self, 'dll'):
+        if not hasattr(self, "dll"):
             self.load_library()
             self.init()
         return self.dll
 
-    def open_camera(self, sn: str = OPEN_FIRST) -> Tuple[PicamHandle, PicamCameraID]:
+    def open_camera(
+        self, sn: str = OPEN_FIRST, debug=None
+    ) -> Tuple[PicamHandle, PicamCameraID]:
+        if debug is not None:
+            self.debug = debug
+
         if not self.is_inited():
             self.init()
 
@@ -89,7 +93,7 @@ class PicamCamManager:
         self.dll = self.get_dll()
         id_array = _read_available_camera_ids(self.dll, self.debug)
         for ii, cam_id in enumerate(id_array):
-            print(ii+1)
+            print(ii + 1)
             print_struct_fields(cam_id)
 
     def get_available_cameras(self):

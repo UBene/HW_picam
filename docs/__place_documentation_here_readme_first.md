@@ -18,17 +18,17 @@
 
  - *sensor_name*: None
 
- - *roi_x*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced accordingly
+ - *roi_x*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced to minimize acquisition time.
 
- - *roi_w*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced accordingly
+ - *roi_w*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced to minimize acquisition time.
 
- - *roi_x_bin*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced accordingly
+ - *roi_x_bin*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced to minimize acquisition time.
 
- - *roi_y*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced accordingly
+ - *roi_y*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced to minimize acquisition time.
 
- - *roi_h*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced accordingly
+ - *roi_h*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced to minimize acquisition time.
 
- - *roi_y_bin*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced accordingly
+ - *roi_y_bin*: Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced to minimize acquisition time.
 
  - *ExposureTime*: None
 
@@ -39,50 +39,6 @@
  - *ShutterClosingDelay*: None
 
  - *ShutterDelayResolution*: None
-
- - *ActiveShutter*: None
-
- - *GatingMode*: None
-
- - *SequentialGateStepCount*: None
-
- - *SequentialGateStepIterations*: None
-
- - *EnableIntensifier*: None
-
- - *IntensifierStatus*: None
-
- - *IntensifierGain*: None
-
- - *EMIccdGainControlMode*: None
-
- - *EMIccdGain*: None
-
- - *PhosphorDecayDelay*: None
-
- - *PhosphorDecayDelayResolution*: None
-
- - *BracketGating*: None
-
- - *EnableModulation*: None
-
- - *ModulationDuration*: None
-
- - *ModulationFrequency*: None
-
- - *RepetitiveModulationPhase*: None
-
- - *SequentialStartingModulationPhase*: None
-
- - *SequentialEndingModulationPhase*: None
-
- - *PhotocathodeSensitivity*: None
-
- - *GatingSpeed*: None
-
- - *PhosphorType*: None
-
- - *IntensifierDiameter*: None
 
  - *AdcSpeed*: None
 
@@ -96,53 +52,19 @@
 
  - *CorrectPixelBias*: None
 
- - *TriggerSource*: None
-
  - *TriggerResponse*: None
 
  - *TriggerDetermination*: None
-
- - *TriggerFrequency*: None
-
- - *TriggerTermination*: None
-
- - *TriggerCoupling*: None
-
- - *TriggerThreshold*: None
-
- - *TriggerDelay*: None
 
  - *OutputSignal*: None
 
  - *InvertOutputSignal*: None
 
- - *InvertOutputSignal2*: None
-
- - *EnableAuxOutput*: None
-
- - *EnableSyncMaster*: None
-
- - *SyncMaster2Delay*: None
-
- - *EnableModulationOutputSignal*: None
-
- - *ModulationOutputSignalFrequency*: None
-
- - *ModulationOutputSignalAmplitude*: None
-
- - *AnticipateTrigger*: None
-
- - *DelayFromPreTrigger*: None
-
  - *ReadoutControlMode*: None
 
  - *ReadoutTimeCalculation*: None
 
- - *ReadoutPortCount*: None
-
  - *KineticsWindowHeight*: None
-
- - *SeNsRWindowHeight*: None
 
  - *VerticalShiftRate*: Controls the rate to shift one row towards the serial register in a CCD in microseconds. 
 
@@ -157,12 +79,6 @@ The valid values depend on the model (or specific camera?):
 <b>blaze:</b> ?
 
 
- - *Accumulations*: None
-
- - *EnableNondestructiveReadout*: None
-
- - *NondestructiveReadoutPeriod*: None
-
  - *NormalizeOrientation*: None
 
  - *DisableDataFormatting*: None
@@ -170,10 +86,6 @@ The valid values depend on the model (or specific camera?):
  - *ReadoutCount*: None
 
  - *ExactReadoutCountMaximum*: None
-
- - *PhotonDetectionMode*: None
-
- - *PhotonDetectionThreshold*: None
 
  - *PixelFormat*: None
 
@@ -200,10 +112,6 @@ The valid values depend on the model (or specific camera?):
  - *TrackFrames*: None
 
  - *FrameTrackingBitDepth*: None
-
- - *GateTrackingBitDepth*: None
-
- - *ModulationTrackingBitDepth*: None
 
  - *SensorType*: None
 
@@ -239,13 +147,9 @@ The valid values depend on the model (or specific camera?):
 
  - *PixelGapHeight*: None
 
- - *ApplicableStarDefectMapID*: None
-
  - *ActiveWidth*: None
 
  - *ActiveHeight*: None
-
- - *ActiveExtendedHeight*: None
 
  - *ActiveLeftMargin*: None
 
@@ -261,10 +165,6 @@ The valid values depend on the model (or specific camera?):
 
  - *MaskedBottomMargin*: None
 
- - *SecondaryMaskedHeight*: None
-
- - *SecondaryActiveHeight*: None
-
  - *CleanSectionFinalHeight*: None
 
  - *CleanSectionFinalHeightCount*: None
@@ -279,8 +179,6 @@ The valid values depend on the model (or specific camera?):
 
  - *CleanUntilTrigger*: None
 
- - *StopCleaningOnPreTrigger*: None
-
  - *SensorTemperatureSetPoint*: None
 
  - *SensorTemperatureReading*: None
@@ -288,46 +186,4 @@ The valid values depend on the model (or specific camera?):
  - *SensorTemperatureStatus*: None
 
  - *DisableCoolingFan*: None
-
- - *CoolingFanStatus*: None
-
- - *EnableSensorWindowHeater*: None
-
- - *VacuumStatus*: None
-
- - *CenterWavelengthSetPoint*: None
-
- - *CenterWavelengthReading*: None
-
- - *CenterWavelengthStatus*: None
-
- - *GratingType*: None
-
- - *GratingCoating*: None
-
- - *GratingGrooveDensity*: None
-
- - *GratingBlazingWavelength*: None
-
- - *FocalLength*: None
-
- - *InclusionAngle*: None
-
- - *SensorAngle*: None
-
- - *LaserOutputMode*: None
-
- - *LaserPower*: None
-
- - *LaserWavelength*: None
-
- - *LaserStatus*: None
-
- - *LightSource*: None
-
- - *LightSourceStatus*: None
-
- - *Age*: None
-
- - *LifeExpectancy*: None
 

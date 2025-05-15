@@ -1,6 +1,5 @@
 from ScopeFoundry import HardwareComponent
 
-
 from . import picam_ctypes
 from .picam_ctypes import PicamParameter
 
@@ -64,6 +63,8 @@ class PicamHW(HardwareComponent):
         self.add_operation("commit_parameters", self.commit_parameters)
         self.add_operation("print available cameras", self.print_available_cameras)
 
+        self.connected_counter = 0
+
     def connect(self):
         s = self.settings
         if s["debug_mode"]:
@@ -71,43 +72,70 @@ class PicamHW(HardwareComponent):
 
         from .picam import PiCAM
 
+        # open_camera is the slow step
         self.cam = PiCAM(s["debug_mode"], s["target_serial_number"])
 
         supported_pnames = self.cam.get_param_names()
 
         lq_dict = self.settings.as_dict()
-        for pname in supported_pnames:
-            if pname in self.settings.as_dict():
-                self.log.debug("connecting {}".format(pname))
-                lq = lq_dict[pname]
-                self.log.debug("lq.name {}".format(lq.name))
-                lq.hardware_read_func = lambda pname=pname: self.cam.read_param(pname)
-                self.log.debug(
-                    "lq.read_from_hardware() {}".format(lq.read_from_hardware())
-                )
-                rw = self.cam.get_param_readwrite(pname)
-                self.log.debug("picam param rw {} {}".format(lq.name, rw))
-                if rw in ["ReadWriteTrivial", "ReadWrite"]:
-                    lq.hardware_set_func = lambda x, pname=pname: self.cam.write_param(
-                        pname, x
-                    )
-                elif rw == "ReadOnly":
-                    lq.change_readonly(True)
-                else:
-                    raise ValueError("picam param rw not understood", rw)
+        for pname in "aas":  # supported_pnames:
+            if not pname in lq_dict:
+                continue
+            self.log.debug(f"{self.name} connecting to {pname}")
 
-        for lqname in ["roi_x", "roi_w", "roi_x_bin", "roi_y", "roi_h", "roi_y_bin"]:
-            self.settings.get_lq(lqname).updated_value.connect(self.write_roi)
+            lq = self.settings.get_lq(pname)
+            read_func = lambda pname=pname: self.cam.read_param(pname)
+            rw = self.cam.get_param_readwrite(pname)
+            if rw in ("ReadWriteTrivial", "ReadWrite"):
+                write_func = lambda x, pname=pname: self.cam.write_param(pname, x)
+            elif rw == "ReadOnly":
+                write_func = None
+                lq.change_readonly(True)
+            else:
+                raise ValueError("picam param rw not understood", rw)
 
-        self.read_from_hardware()
-        s.serial_number.connect_to_hardware(self.cam.serial_number)
-        s.sensor_name.connect_to_hardware(self.cam.sensor_name)
+            self.log.debug(f"picam param {lq.name} rw {rw}")
+
+            lq.connect_to_hardware(read_func, write_func)
+            # self.log.debug(f"lq.read_from_hardware() {lq.read_from_hardware()}")
+
+        s.get_lq("serial_number").connect_to_hardware(self.cam.serial_number)
+        s.get_lq("sensor_name").connect_to_hardware(self.cam.sensor_name)
         if self.cam.supports_rois:
-            s.roi_w.change_min_max(1, s["SensorActiveWidth"])
-            s.roi_x_bin.change_min_max(1, s["SensorActiveWidth"])
-            s.roi_h.change_min_max(1, s["SensorActiveHeight"])
-            s.roi_y_bin.change_min_max(1, s["SensorActiveHeight"])
+            s.get_lq("roi_w").change_min_max(1, s["SensorActiveWidth"])
+            s.get_lq("roi_x_bin").change_min_max(1, s["SensorActiveWidth"])
+            s.get_lq("roi_h").change_min_max(1, s["SensorActiveHeight"])
+            s.get_lq("roi_y_bin").change_min_max(1, s["SensorActiveHeight"])
+
+        if not self.connected_counter:
+            # remove unsupported setting
+            # Requires ScopeFoundry 2.0
+            try:
+                for name, param in PicamParameter.items():
+                    if (
+                        not (param.short_name in supported_pnames)
+                        and param.short_name in self.settings.keys()
+                    ):
+                        # print(self.name, "removing unsupported setting", param.short_name)
+                        self.settings.remove(param.short_name)
+            except AttributeError as err:
+                print(err)
+                print(
+                    "Removing unsupported settings failed: pip install --upgrade scopefoundry"
+                )
+            for lqname in [
+                "roi_x",
+                "roi_w",
+                "roi_x_bin",
+                "roi_y",
+                "roi_h",
+                "roi_y_bin",
+            ]:
+                self.settings.get_lq(lqname).updated_value.connect(self.write_roi)
+
         self.commit_parameters()
+        self.read_from_hardware()
+        self.connected_counter += 1
 
     def write_roi(self, a=None):
         if not self.cam.supports_rois:
@@ -122,7 +150,7 @@ class PicamHW(HardwareComponent):
         # second deactivate what you do not need.
         s["ActiveLeftMargin"] = s["roi_x"]
         s["ActiveBottomMargin"] = s["roi_y"]
-        
+
         self.cam.write_single_roi(
             x=s["roi_x"],
             width=s["roi_w"],
@@ -132,13 +160,15 @@ class PicamHW(HardwareComponent):
             y_binning=s["roi_y_bin"],
         )
 
-
-
-        
-
     def get_shape(self):
         s = self.settings
         return (s["roi_w"] // s["roi_x_bin"], s["roi_h"] // s["roi_y_bin"])
+
+    def get_px_index(self):
+        s = self.settings
+        import numpy as np
+
+        return np.arange(s["roi_x"], s["roi_x"] + s["roi_w"], s["roi_x_bin"])
 
     def disconnect(self):
         self.settings.disconnect_all_from_hardware()
