@@ -22,12 +22,12 @@ class PicamHW(HardwareComponent):
 
         s.New("serial_number", str, initial="", ro=True)
         s.New("sensor_name", str, initial="", ro=True)
-        s.New("roi_x", int, initial=0)
-        s.New("roi_w", int, initial=1600)
-        s.New("roi_x_bin", int, initial=1, vmin=1)
-        s.New("roi_y", int, initial=0)
-        s.New("roi_h", int, initial=1)
-        s.New("roi_y_bin", int, initial=1, vmin=1)
+        s.New("roi_x", int, initial=0, description=ROI_DESCRIPTION)
+        s.New("roi_w", int, initial=1600, description=ROI_DESCRIPTION)
+        s.New("roi_x_bin", int, initial=1, vmin=1, description=ROI_DESCRIPTION)
+        s.New("roi_y", int, initial=0, description=ROI_DESCRIPTION)
+        s.New("roi_h", int, initial=1, description=ROI_DESCRIPTION)
+        s.New("roi_y_bin", int, initial=1, vmin=1, description=ROI_DESCRIPTION)
 
         # Auto-generate settings from PicamParameters
         dtype_translate = dict(
@@ -50,8 +50,16 @@ class PicamHW(HardwareComponent):
 
         # Customize auto-generated parameters
         s.ExposureTime.change_unit("ms")
-        s.AdcSpeed.change_unit("MHz")
+        s.ExposureTime.spinbox_decimals = 3
 
+        s.AdcSpeed.change_unit("MHz")
+        s.get_lq("FrameRateCalculation").change_unit("Hz")
+        s.get_lq("FrameRateCalculation").description = (
+            "The maximum number of frames per second that camera can acquire is a function of roi, ExposureTime, VerticalShift ..."
+        )
+        s.get_lq("VerticalShiftRate").change_unit("us")
+        s.get_lq("VerticalShiftRate").spinbox_decimals = 6
+        s.get_lq("VerticalShiftRate").description = VERTICAL_SHIFT_DESCRIPTION
         # operations
         self.add_operation("commit_parameters", self.commit_parameters)
         self.add_operation("print available cameras", self.print_available_cameras)
@@ -99,14 +107,22 @@ class PicamHW(HardwareComponent):
             s.roi_x_bin.change_min_max(1, s["SensorActiveWidth"])
             s.roi_h.change_min_max(1, s["SensorActiveHeight"])
             s.roi_y_bin.change_min_max(1, s["SensorActiveHeight"])
-            self.write_roi()
-            self.cam.read_rois()
         self.commit_parameters()
 
     def write_roi(self, a=None):
         if not self.cam.supports_rois:
             return
+
         s = self.settings
+
+        # confusing way to define active region??
+        # first activate more than you need
+        s["ActiveWidth"] = s["roi_w"] + s["roi_x"]
+        s["ActiveHeight"] = s["roi_h"] + s["roi_y"]
+        # second deactivate what you do not need.
+        s["ActiveLeftMargin"] = s["roi_x"]
+        s["ActiveBottomMargin"] = s["roi_y"]
+        
         self.cam.write_single_roi(
             x=s["roi_x"],
             width=s["roi_w"],
@@ -116,8 +132,9 @@ class PicamHW(HardwareComponent):
             y_binning=s["roi_y_bin"],
         )
 
-        s["ActiveWidth"] = s["roi_w"]
-        s["ActiveHeight"] = s["roi_h"]
+
+
+        
 
     def get_shape(self):
         s = self.settings
@@ -136,3 +153,19 @@ class PicamHW(HardwareComponent):
         from .picam_cam_manager import manager
 
         manager.print_available_cameras()
+
+
+VERTICAL_SHIFT_DESCRIPTION = """Controls the rate to shift one row towards the serial register in a CCD in microseconds. 
+
+The valid values depend on the model (or specific camera?):
+
+<b>pixis:</b> 6.2, 9.2, 12.2, 15.2, 18.2, 21.2, 24.2, 27.2, 30.2 ,33.2, 36.2, 39.2, 42.2, 45.2, and 48.2 us
+
+<b>pro_em:</b> 0.6, 2us ... ?
+
+<b>pylon:</b> NA
+
+<b>blaze:</b> ?
+"""
+
+ROI_DESCRIPTION = """Defines the Region of Interest, that is the section of the sensor and the Binning of the Image. In this Implementation the active area is reduced to minimize acquisition time."""

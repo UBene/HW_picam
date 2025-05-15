@@ -107,7 +107,7 @@ class PicamPolling(Measurement):
             widget.setFlat(False)
             l = QtWidgets.QHBoxLayout(widget)
             l.addWidget(hw.operations.new_button("Read from\nHardware"))
-            l.addWidget(hw.settings.New_UI(("ExposureTime", "FrameRateCalculation")))
+            l.addWidget(hw.settings.New_UI(("ExposureTime", "VerticalShiftRate", "FrameRateCalculation")))
             l.addWidget(hw.settings.New_UI(("roi_x", "roi_w", "roi_x_bin")))
             l.addWidget(hw.settings.New_UI(("roi_y", "roi_h", "roi_y_bin")))
             self.hw_widgets[name] = widget
