@@ -8,6 +8,7 @@ from ScopeFoundry.helper_funcs import load_qt_ui_file, sibling_path
 from qtpy import QtCore, QtWidgets, QtGui, QtSvg, QtSvgWidgets
 
 from ScopeFoundryHW.picam.picam_hw import PicamHW
+from ScopeFoundryHW.picam.picam import PiCAM
 
 
 WL_CALIB_CHOICES = ("pixels", "spectrometer")
@@ -86,18 +87,16 @@ class PicamReadoutMeasure(Measurement):
 
     def run(self):
         hw: PicamHW = self.cam_hw
-        cam = self.cam_hw.cam
+        cam: PiCAM = self.cam_hw.cam
         cam.commit_parameters()
 
         s = self.settings
         cam_s = self.cam_hw.settings
 
-        cam_s["TriggerSource"] = "Internal"
         cam_s["ShutterTimingMode"] = "AlwaysOpen"
         cam_s["ReadoutCount"] =  1
 
         while not self.interrupt_measurement_called:
-            hw.commit_parameters()
             image = self.read_images(
                 readout_timeout=max(60_000, int(cam_s["ExposureTime"] * 1.1))
             )[0]

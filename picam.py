@@ -19,7 +19,8 @@ class PiCAM(object):
         # open_camera is the slow step
         self.camera_handle, self.camera_id = manager.open_camera(target_sn, debug)
         self.supports_rois = self.can_set_first_px_as_roi()
-
+        self.read_rois()
+        
     def sensor_name(self):
         return self.camera_id.sensor_name.decode()
 
@@ -228,14 +229,18 @@ class PiCAM(object):
 
         failed_param_array = ctypes.POINTER(ctypes.c_int)()
         failed_pcount = picam_ctypes.piint()
+        
 
-        self._err(
-            self.dll.Picam_CommitParameters(
+
+        
+        err = self.dll.Picam_CommitParameters(
                 self.camera_handle,
                 ctypes.byref(failed_param_array),
                 ctypes.byref(failed_pcount),
             )
-        )
+        
+        print(failed_param_array)
+        
         a = np.fromiter(failed_param_array, dtype=int, count=failed_pcount.value)
         self._err(self.dll.Picam_DestroyParameters(failed_param_array))
 
