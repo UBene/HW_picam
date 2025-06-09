@@ -20,7 +20,7 @@ class PiCAM(object):
         self.camera_handle, self.camera_id = manager.open_camera(target_sn, debug)
         self.supports_rois = self.can_set_first_px_as_roi()
         self.read_rois()
-        
+
     def sensor_name(self):
         return self.camera_id.sensor_name.decode()
 
@@ -229,18 +229,15 @@ class PiCAM(object):
 
         failed_param_array = ctypes.POINTER(ctypes.c_int)()
         failed_pcount = picam_ctypes.piint()
-        
 
-
-        
         err = self.dll.Picam_CommitParameters(
-                self.camera_handle,
-                ctypes.byref(failed_param_array),
-                ctypes.byref(failed_pcount),
-            )
-        
-        print(failed_param_array)
-        
+            self.camera_handle,
+            ctypes.byref(failed_param_array),
+            ctypes.byref(failed_pcount),
+        )
+        if failed_pcount.value:
+            print(f"Picam_CommitParameters failed with {failed_param_array} parameters")
+
         a = np.fromiter(failed_param_array, dtype=int, count=failed_pcount.value)
         self._err(self.dll.Picam_DestroyParameters(failed_param_array))
 
@@ -282,7 +279,11 @@ class PiCAM(object):
                 # print(hex(x), picam_ctypes.PicamParameterEnum.bynums[x])
                 param_list.append(picam_ctypes.PicamParameterEnum.bynums[x])
             else:
-                print(picam_ctypes.PicamParameterEnum.bynums[x])
+                print(
+                    "skipping invalid parameter",
+                    hex(x),
+                    picam_ctypes.PicamParameterEnum.bynums[x],
+                )
 
         return param_list
 

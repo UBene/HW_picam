@@ -59,6 +59,7 @@ class PicamReadoutMeasure(Measurement):
             "wavelengths": self.wls,
             "wave_numbers": 1 / self.wls,
             "raman_shifts": self.wls,
+            "image" : self.spectrum.reshape((-1,1))
         }
 
     def read_images(self, readout_count=1, readout_timeout=-1):
@@ -242,6 +243,9 @@ class PicamReadoutMeasure(Measurement):
             widget=self.cam_controls,
         )
         spec_dock.raiseDock()
+
+        choices = [hw.name for hw in self.app.hardware.values() if hasattr(hw, "get_wl_calibration")]
+        self.settings.get_lq("spec_hw").add_choices(choices, allow_duplicates = False)
 
     def update_display(self):
         image = self.data["image"].T.astype(float)
